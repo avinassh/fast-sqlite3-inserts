@@ -6,7 +6,7 @@ DB_NAME = "sqlite3_opt_batched.db"
 
 
 def faker(con: sqlite3.Connection, count=100_000):
-    min_batch_size = 1_00_000
+    min_batch_size = 1_000_000
     con.execute('BEGIN')
     for _ in range(int(count / min_batch_size)):
         with_area = get_random_bool()
