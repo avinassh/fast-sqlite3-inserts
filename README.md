@@ -1,2 +1,3 @@
 # fast-sqlite3-inserts
-Some bunch of test scripts to generate a SQLite DB with 1B rows in fastest possible way
+
+To find out the fastest way to create an SQLite DB with 1B rows.
