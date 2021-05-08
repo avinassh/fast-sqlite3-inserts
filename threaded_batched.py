@@ -6,7 +6,7 @@ from typing import List
 
 from commons import get_random_age, get_random_active, get_random_bool, get_random_area_code, create_table
 
-DB_NAME = "threaded_batch.db"
+DB_NAME = "threaded_batched.db"
 
 q = queue.Queue()
 
