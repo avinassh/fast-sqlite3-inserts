@@ -200,6 +200,7 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 name = "fast-sqlite3-inserts"
 version = "0.1.0"
 dependencies = [
+ "num_cpus",
  "rand",
  "sqlx",
  "tokio",
