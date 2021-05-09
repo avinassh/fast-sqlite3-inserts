@@ -65,3 +65,12 @@ echo "$(date)" "[PYPY] running threaded_batched.py (100_000_000) inserts"
 if [[ $(sqlite3 threaded_batched.db  "select count(*) from user";) != 100000000 ]]; then
   echo "data verification failed"
 fi
+
+# benching with all prev sqlite optimisations, but on rust
+rm -rf basic_rs.db basic_rs.db-shm basic_rs.db-wal
+export DATABASE_URL="sqlite:basic_rs.db"
+sqlx db create
+sqlx migrate run
+cargo build --release --quiet --bin basic
+echo "$(date)" "[RUST] basic.rs (100_000_000) iterations"
+/usr/bin/time ./target/release/basic
