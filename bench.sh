@@ -28,6 +28,15 @@ if [[ $(sqlite3 sqlite3_opt.db  "select count(*) from user";) != 100000000 ]]; t
   echo "data verification failed"
 fi
 
+# benching sqlite3 optimized on PYPY
+rm -rf sqlite3_opt.db sqlite3_opt.db-shm sqlite3_opt.db-wal
+echo
+echo "$(date)" "[PYPY] running sqlite3_opt.py (100_000_000) inserts"
+/usr/bin/time pypy3 sqlite3_opt.py
+if [[ $(sqlite3 sqlite3_opt.db  "select count(*) from user";) != 100000000 ]]; then
+  echo "data verification failed"
+fi
+
 # benching sqlite3 optimized and batched
 rm -rf sqlite3_opt_batched.db sqlite3_opt_batched.db-shm sqlite3_opt_batched.db-wal
 echo
