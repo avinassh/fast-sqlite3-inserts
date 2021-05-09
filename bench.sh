@@ -74,3 +74,9 @@ sqlx migrate run
 cargo build --release --quiet --bin basic_async
 echo "$(date)" "[RUST] basic_async.rs (100_000_000) inserts"
 /usr/bin/time ./target/release/basic_async
+
+# benching with all prev sqlite optimisations, but on rust with rusqlite
+rm -rf basic.db basic.db-shm basic.db-wal
+cargo build --release --quiet --bin basic
+echo "$(date)" "[RUST] basic.rs (100_000_000) inserts"
+/usr/bin/time ./target/release/basic
