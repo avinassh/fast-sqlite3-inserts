@@ -1,0 +1,11 @@
+[package]
+name = "fast-sqlite3-inserts"
+version = "0.1.0"
+authors = ["avi <hi@avi.im>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+sqlx = { version = "0.5.2", features = ["runtime-tokio-native-tls", "sqlite"]}
+tokio = {version = "1.5.0", features = ["full"]}
+rand = "0.8.3"

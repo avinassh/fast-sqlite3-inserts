@@ -73,3 +73,9 @@ echo "$(date)" "[PYTHON] busy_loop.py (100_000_000) iterations"
 echo
 echo "$(date)" "[PYPY] busy_loop.py (100_000_000) iterations"
 /usr/bin/time pypy3 busy_loop.py
+echo
+cargo build --release --quiet --bin busy
+echo "$(date)" "[RUSR] busy.rs (100_000_000) iterations"
+/usr/bin/time ./target/release/busy
+
+
