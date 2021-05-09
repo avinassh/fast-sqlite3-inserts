@@ -49,7 +49,6 @@ Sun May  9 13:23:32 IST 2021 [RUST] threaded_busy.rs (100_000_000) iterations
 ### Rust
 
 ```
-307242197f5fc7508f5cb65ced6bf8bd67660306
-Sun May  9 15:40:13 IST 2021 [RUST] basic.rs (100_000_000) iterations
+Sun May  9 15:40:13 IST 2021 [RUST] basic_async.rs (100_000_000) inserts
       814.85 real      1194.27 user       250.81 sys
 ```

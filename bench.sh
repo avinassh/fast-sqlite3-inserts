@@ -66,11 +66,11 @@ if [[ $(sqlite3 threaded_batched.db  "select count(*) from user";) != 100000000 
   echo "data verification failed"
 fi
 
-# benching with all prev sqlite optimisations, but on rust
-rm -rf basic_rs.db basic_rs.db-shm basic_rs.db-wal
-export DATABASE_URL="sqlite:basic_rs.db"
+# benching with all prev sqlite optimisations, but on rust with sqlx async
+rm -rf basic_async.db basic_async.db-shm basic_async.db-wal
+export DATABASE_URL="sqlite:basic_async.db"
 sqlx db create
 sqlx migrate run
-cargo build --release --quiet --bin basic
-echo "$(date)" "[RUST] basic.rs (100_000_000) iterations"
-/usr/bin/time ./target/release/basic
+cargo build --release --quiet --bin basic_async
+echo "$(date)" "[RUST] basic_async.rs (100_000_000) inserts"
+/usr/bin/time ./target/release/basic_async
