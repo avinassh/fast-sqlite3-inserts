@@ -47,7 +47,7 @@ async fn main() -> Result<(), sqlx::Error> {
     conn.execute("PRAGMA locking_mode = EXCLUSIVE;").await?;
     conn.execute("PRAGMA temp_store = MEMORY;").await?;
 
-    faker(conn, 100).await?;
+    faker(conn, 100_000_000).await?;
 
     Ok(())
 }
