@@ -80,3 +80,9 @@ rm -rf basic.db basic.db-shm basic.db-wal
 cargo build --release --quiet --bin basic
 echo "$(date)" "[RUST] basic.rs (100_000_000) inserts"
 /usr/bin/time ./target/release/basic
+
+# benching with all prev sqlite optimisations, but on rust with rusqlite with batched inserts
+rm -rf basic_batched.db basic_batched.db-shm basic_batched.db-wal
+cargo build --release --quiet --bin basic_batched
+echo "$(date)" "[RUST] basic_batched.rs (100_000_000) inserts"
+/usr/bin/time ./target/release/basic_batched
