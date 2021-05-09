@@ -29,8 +29,10 @@ Sat May  8 20:05:45 IST 2021 [PYPY] running threaded_batched.py (100_000_000) in
       324.12 real       224.14 user        84.69 sys
 ```
 
-### The time spent in just looping
+### Busy loop time
 ```
+$ ./busy.sh
+
 Sun May  9 13:16:01 IST 2021 [PYTHON] busy_loop.py (100_000_000) iterations
       351.14 real       347.53 user         3.39 sys
 
