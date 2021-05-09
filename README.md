@@ -28,3 +28,18 @@ Sat May  8 20:03:04 IST 2021 [PYPY] running sqlite3_opt_batched.py (100_000_000)
 Sat May  8 20:05:45 IST 2021 [PYPY] running threaded_batched.py (100_000_000) inserts
       324.12 real       224.14 user        84.69 sys
 ```
+
+### The time spent in just looping
+```
+Sun May  9 13:16:01 IST 2021 [PYTHON] busy_loop.py (100_000_000) iterations
+      351.14 real       347.53 user         3.39 sys
+
+Sun May  9 13:21:52 IST 2021 [PYPY] busy_loop.py (100_000_000) iterations
+       81.58 real        77.73 user         3.80 sys
+
+Sun May  9 13:23:14 IST 2021 [RUST] busy.rs (100_000_000) iterations
+       17.97 real        16.29 user         1.67 sys
+
+Sun May  9 13:23:32 IST 2021 [RUST] threaded_busy.rs (100_000_000) iterations
+        7.18 real        42.52 user         7.20 sys
+```
