@@ -65,3 +65,11 @@ echo "$(date)" "[PYPY] running threaded_batched.py (100_000_000) inserts"
 if [[ $(sqlite3 threaded_batched.db  "select count(*) from user";) != 100000000 ]]; then
   echo "data verification failed"
 fi
+
+# benching busy loop
+echo
+echo "$(date)" "[PYTHON] busy_loop.py (100_000_000) iterations"
+/usr/bin/time python3 busy_loop.py
+echo
+echo "$(date)" "[PYPY] busy_loop.py (100_000_000) iterations"
+/usr/bin/time pypy3 busy_loop.py
