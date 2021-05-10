@@ -49,6 +49,10 @@ Sun May  9 13:23:32 IST 2021 [RUST] threaded_busy.rs (100_000_000) iterations
 ### Rust
 
 ```
-Sun May  9 15:40:13 IST 2021 [RUST] basic_async.rs (100_000_000) inserts
-      814.85 real      1194.27 user       250.81 sys
+Mon May 10 17:25:45 IST 2021 [RUST] basic_async.rs (100_000_000) inserts
+      833.36 real      1202.85 user       254.21 sys
+Mon May 10 17:39:39 IST 2021 [RUST] basic_prep.rs (100_000_000) inserts
+       59.64 real        57.01 user         2.27 sys
+Mon May 10 17:40:39 IST 2021 [RUST] basic_batched.rs (100_000_000) inserts
+       51.08 real        48.16 user         2.43 sys
 ```
