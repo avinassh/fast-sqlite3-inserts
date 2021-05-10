@@ -4,25 +4,30 @@ mod common;
 
 fn faker(mut conn: Connection, count: i64) {
     let tx = conn.transaction().unwrap();
-    let mut stmt_with_area = tx
-        .prepare_cached("INSERT INTO user VALUES (NULL, ?, ?, ?)")
-        .unwrap();
-    let mut stmt = tx
-        .prepare_cached("INSERT INTO user VALUES (NULL, NULL, ?, ?)")
-        .unwrap();
     let min_batch_size = 1_000_000;
     for _ in 0..(count / min_batch_size) {
+        let mut stmt = "INSERT INTO user VALUES".to_owned();
         let with_area = common::get_random_bool();
         let age = common::get_random_age();
         let is_active = common::get_random_active();
         for _ in 0..min_batch_size {
             if with_area {
                 let area_code = common::get_random_area_code();
-                stmt.execute(params![area_code, age, is_active]).unwrap();
+                let params = format!(" (NULL, {}, {}, {}),", area_code, age, is_active);
+                stmt.push_str(&params);
             } else {
-                stmt.execute(params![age, is_active]).unwrap();
+                let params = format!(" (NULL, NULL, {}, {}),", age, is_active);
+                stmt.push_str(&params);
             }
         }
+        // at the end, we end up a with string which looks like:
+        //
+        // INSERT INTO user VALUES (NULL, NULL, 5, 1), (NULL, 1, 5, 1), (NULL, 1, 5, 1),
+        //
+        // Notice the `,` at the, which we will replace it with `;`
+        stmt.pop();
+        stmt.push(';');
+        tx.execute(&*stmt, []).unwrap();
     }
     tx.commit().unwrap();
 }
