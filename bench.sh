@@ -77,9 +77,6 @@ fi
 
 # benching with all prev sqlite optimisations, but on rust with sqlx async
 rm -rf basic_async.db basic_async.db-shm basic_async.db-wal
-export DATABASE_URL="sqlite:basic_async.db"
-sqlx db create
-sqlx migrate run
 cargo build --release --quiet --bin basic_async
 echo "$(date)" "[RUST] basic_async.rs (100_000_000) inserts"
 /usr/bin/time ./target/release/basic_async
@@ -97,7 +94,7 @@ cargo build --release --quiet --bin basic_batched_wp
 echo "$(date)" "[RUST] basic_batched_wp.rs (100_000_000) inserts"
 /usr/bin/time ./target/release/basic_batched_wp
 
-# benching with all prev sqlite optimisations, but on rust with rusqlite with batched inserts where
+# benching with all prev sqlite optimisations, but on rust with rusqlite with inserts where
 # each batch is a proper prepared statement
 rm -rf basic_prep.db basic_prep.db-shm basic_prep.db-wal
 cargo build --release --quiet --bin basic_prep
