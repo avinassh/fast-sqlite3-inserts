@@ -1,9 +1,14 @@
-use rusqlite::Connection;
+use rusqlite::{params, Connection, Transaction};
 
 mod common;
 
-fn faker(mut conn: Connection, count: i64) {
+fn faker_wrapper(mut conn: Connection, count: i64) {
     let tx = conn.transaction().unwrap();
+    faker(&tx, count);
+    tx.commit().unwrap();
+}
+
+fn faker(tx: &Transaction, count: i64) {
     let mut stmt_with_area = tx
         .prepare_cached("INSERT INTO user VALUES (NULL, ?, ?, ?)")
         .unwrap();
@@ -18,13 +23,14 @@ fn faker(mut conn: Connection, count: i64) {
         for _ in 0..min_batch_size {
             if with_area {
                 let area_code = common::get_random_area_code();
-                stmt.execute(params![area_code, age, is_active]).unwrap();
+                stmt_with_area
+                    .execute(params![area_code, age, is_active])
+                    .unwrap();
             } else {
                 stmt.execute(params![age, is_active]).unwrap();
             }
         }
     }
-    tx.commit().unwrap();
 }
 
 fn main() {
@@ -46,5 +52,5 @@ fn main() {
         [],
     )
     .unwrap();
-    faker(conn, 100_000_000)
+    faker_wrapper(conn, 100_000_000)
 }
