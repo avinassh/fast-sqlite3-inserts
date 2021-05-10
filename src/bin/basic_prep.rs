@@ -15,26 +15,23 @@ fn faker(tx: &Transaction, count: i64) {
     let mut stmt = tx
         .prepare_cached("INSERT INTO user VALUES (NULL, NULL, ?, ?)")
         .unwrap();
-    let min_batch_size = 1_000_000;
-    for _ in 0..(count / min_batch_size) {
+    for _ in 0..count {
         let with_area = common::get_random_bool();
         let age = common::get_random_age();
         let is_active = common::get_random_active();
-        for _ in 0..min_batch_size {
-            if with_area {
-                let area_code = common::get_random_area_code();
-                stmt_with_area
-                    .execute(params![area_code, age, is_active])
-                    .unwrap();
-            } else {
-                stmt.execute(params![age, is_active]).unwrap();
-            }
+        if with_area {
+            let area_code = common::get_random_area_code();
+            stmt_with_area
+                .execute(params![area_code, age, is_active])
+                .unwrap();
+        } else {
+            stmt.execute(params![age, is_active]).unwrap();
         }
     }
 }
 
 fn main() {
-    let conn = Connection::open("basic_batched.db").unwrap();
+    let conn = Connection::open("basic_prep.db").unwrap();
     conn.execute_batch(
         "PRAGMA journal_mode = OFF;
               PRAGMA synchronous = 0;

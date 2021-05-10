@@ -99,6 +99,13 @@ echo "$(date)" "[RUST] basic_batched_wp.rs (100_000_000) inserts"
 
 # benching with all prev sqlite optimisations, but on rust with rusqlite with batched inserts where
 # each batch is a proper prepared statement
+rm -rf basic_prep.db basic_prep.db-shm basic_prep.db-wal
+cargo build --release --quiet --bin basic_prep
+echo "$(date)" "[RUST] basic_prep.rs (100_000_000) inserts"
+/usr/bin/time ./target/release/basic_prep
+
+# benching with all prev sqlite optimisations, but on rust with rusqlite with batched inserts where
+# each batch is a proper prepared statement
 rm -rf basic_batched.db basic_batched.db-shm basic_batched.db-wal
 cargo build --release --quiet --bin basic_batched
 echo "$(date)" "[RUST] basic_batched.rs (100_000_000) inserts"
