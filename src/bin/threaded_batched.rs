@@ -116,7 +116,6 @@ fn main() {
 
     let cpu_count = num_cpus::get();
     let total_rows = 100_000_000;
-    let total_rows = 1000;
     let each_producer_count = (total_rows / cpu_count) as i64;
     let mut handles = Vec::with_capacity(cpu_count);
     for _ in 0..cpu_count {
