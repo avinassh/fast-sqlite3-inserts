@@ -94,6 +94,13 @@ cargo build --release --quiet --bin basic_batched_wp
 echo "$(date)" "[RUST] basic_batched_wp.rs (100_000_000) inserts"
 /usr/bin/time ./target/release/basic_batched_wp
 
+# just like the previous version, so really bad.
+rm -rf threaded_str_batched.db threaded_str_batched.db-shm threaded_str_batched.db-wal
+cargo build --release --quiet --bin threaded_str_batched
+echo "$(date)" "[RUST] threaded_str_batched.rs (100_000_000) inserts"
+/usr/bin/time ./target/release/threaded_str_batched
+
+
 # benching with all prev sqlite optimisations, but on rust with rusqlite with inserts where
 # each batch is a proper prepared statement
 rm -rf basic_prep.db basic_prep.db-shm basic_prep.db-wal
@@ -107,9 +114,3 @@ rm -rf basic_batched.db basic_batched.db-shm basic_batched.db-wal
 cargo build --release --quiet --bin basic_batched
 echo "$(date)" "[RUST] basic_batched.rs (100_000_000) inserts"
 /usr/bin/time ./target/release/basic_batched
-
-# prev optimisations, but with rust batched inserts on different threads
-rm -rf threaded_batched.db threaded_batched.db-shm threaded_batched.db-wal
-cargo build --release --quiet --bin threaded_batched
-echo "$(date)" "[RUST] threaded_batched.rs (100_000_000) inserts"
-/usr/bin/time ./target/release/threaded_batched
