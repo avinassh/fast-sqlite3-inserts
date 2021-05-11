@@ -10,11 +10,12 @@ fn faker_wrapper(mut conn: Connection, count: i64) {
 
 fn faker(tx: &Transaction, count: i64) {
     let mut stmt_with_area = tx
-        .prepare_cached("INSERT INTO user VALUES (NULL, ?, ?, ?)")
+        .prepare_cached("INSERT INTO user VALUES (?, ?, ?, ?)")
         .unwrap();
     let mut stmt = tx
-        .prepare_cached("INSERT INTO user VALUES (NULL, NULL, ?, ?)")
+        .prepare_cached("INSERT INTO user VALUES (?, NULL, ?, ?)")
         .unwrap();
+    let mut pk: i64 = 1;
     for _ in 0..count {
         let with_area = common::get_random_bool();
         let age = common::get_random_age();
@@ -22,11 +23,12 @@ fn faker(tx: &Transaction, count: i64) {
         if with_area {
             let area_code = common::get_random_area_code();
             stmt_with_area
-                .execute(params![area_code, age, is_active])
+                .execute(params![pk, area_code, age, is_active])
                 .unwrap();
         } else {
-            stmt.execute(params![age, is_active]).unwrap();
+            stmt.execute(params![pk, age, is_active]).unwrap();
         }
+        pk += 1;
     }
 }
 
