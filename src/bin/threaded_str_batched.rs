@@ -6,7 +6,7 @@ use std::thread;
 mod common;
 
 fn consumer(rx: Receiver<String>) {
-    let mut conn = Connection::open("threaded_batched.db").unwrap();
+    let mut conn = Connection::open("threaded_str_batched.db").unwrap();
     conn.execute_batch(
         "PRAGMA journal_mode = OFF;
               PRAGMA synchronous = 0;
