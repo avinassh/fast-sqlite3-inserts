@@ -14,4 +14,8 @@ jobs:
       - name: List files in the repository
         run: |
           ls ${{ github.workspace }}
+      - name: check version
+        run: |
+          uname -a
+          uname -m
       - run: echo "🍏 This job's status is ${{ job.status }}."
