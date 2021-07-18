@@ -29,7 +29,8 @@ fn consumer(rx: Receiver<ParamValues>) {
               PRAGMA synchronous = 0;
               PRAGMA cache_size = 1000000;
               PRAGMA locking_mode = EXCLUSIVE;
-              PRAGMA temp_store = MEMORY;",
+              PRAGMA temp_store = MEMORY;
+              PRAGMA page_size = 65536;",
     )
     .expect("PRAGMA");
     conn.execute(
