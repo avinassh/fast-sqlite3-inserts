@@ -1,3 +1,11 @@
+//! batched, prepared statements and also threaded
+//!
+//! This version is a combination of threaded_batched.rs and basic_batched_wp.rs, so we have threads to
+//! handle writing to SQLite and generating data. The difference is, we build a long string to make
+//! a single insertion. Checking `basic_batched_wp.rs` would help
+//!
+//! previous: threaded_batched.rs
+
 use rusqlite::Connection;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};

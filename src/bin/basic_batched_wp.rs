@@ -1,3 +1,13 @@
+//! string as prepared statement
+//!
+//! I have no idea why I suffixed this file with `_wp.rs`
+//!
+//! Here I do a batch insertion where each batch being 1M in size. Then I insert all of them with
+//! a single insert statement. I thought this was a fun experiment to try, lol.
+//!
+//! previous: basic_batched.rs
+//! next: threaded_batched.rs
+
 use rusqlite::Connection;
 
 mod common;

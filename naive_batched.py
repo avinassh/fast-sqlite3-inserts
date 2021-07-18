@@ -1,3 +1,12 @@
+""" naive batched
+
+This version builds from naive.py, here I added batching. So instead of one 10M for loop, here we insert rows in a batches of 
+100K. This has no SQLite optimisations either.
+
+previous: naive.py
+next: sqlite3_opt.py
+"""
+
 import sqlite3
 
 from commons import get_random_age, get_random_active, get_random_bool, get_random_area_code, create_table

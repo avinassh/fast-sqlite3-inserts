@@ -1,3 +1,12 @@
+""" batched, sqlite3 optimised.
+
+This version builds from naive_batched.py, but this one includes SQLite3 optimisations. This one also has batching, so this gives
+us the best performance in CPython / PyPy.
+
+previous: sqlite3_opt.py
+next: thread_batched.py
+"""
+
 import sqlite3
 
 from commons import get_random_age, get_random_active, get_random_bool, get_random_area_code, create_table

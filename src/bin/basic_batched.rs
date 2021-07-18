@@ -1,3 +1,12 @@
+//! batched and prepared statements
+//!
+//! This builds upon basic_prep, however we do batched insertions. Each batch is is of size 50.
+//!
+//! This is second fastest version in rust.
+//!
+//! previous: basic_prep.rs
+//! next: basic_batched_wp.rs
+
 use rusqlite::{Connection, ToSql, Transaction};
 
 mod common;
@@ -15,6 +24,16 @@ fn faker(tx: &Transaction, count: i64) {
         panic!("count cant be less than min batch size");
     }
 
+    // the way this works is
+    // 1. we build a prepared statement and cache it so that it can be re-used. We build two of those
+    // one for insertions with area and another for without area code.
+    //
+    // 2. Then we will build the parameters which can be passed to these prepared statements.
+    // 3. Execute
+    // 4. ???
+    // 5. Profit
+
+    // we will build parameters to pass to prepared statements
     // jeez, refactor this!
     let mut with_area_params = " (NULL, ?, ?, ?),".repeat(min_batch_size as usize);
     with_area_params.pop();

@@ -1,3 +1,11 @@
+//! naive version
+//!
+//! This is the first Rust version I came up with. This builds from the Python versions, so I have
+//! included all the SQLite optimisations. However, there is no batching involved, I just have a
+//! long for loop where it loops over 100M and inserts the rows one by one.
+//!
+//! next: basic_async.rs
+
 use rusqlite::{params, Connection};
 
 mod common;

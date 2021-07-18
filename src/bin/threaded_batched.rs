@@ -1,3 +1,13 @@
+//! batched, prepared statements and also threaded
+//!
+//! This builds upon basic_batched version and very similar to the python counterpart `threaded_batched.py`
+//!
+//! We have a channel, spawn a single writer thread which consumes from queue and writes to SQLite.
+//! Then we spawn few more producer threads which generate the data, push to channel.
+//!
+//! previous: basic_batched.rs
+//! next: threaded_str_batched.rs
+
 use rusqlite::{Connection, ToSql};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -33,7 +43,10 @@ fn consumer(rx: Receiver<ParamValues>) {
     .unwrap();
     let tx = conn.transaction().unwrap();
     {
+        // TODO: refactor and DRY from basic_batched
         // jeez, refactor this!
+        // this is very similar to the code from basic_batched, check that file to understand
+        // whats happening here.
         let mut with_area_params = " (NULL, ?, ?, ?),".repeat(MIN_BATCH_SIZE as usize);
         with_area_params.pop();
         let with_area_params = with_area_params.as_str();
