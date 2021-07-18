@@ -4,6 +4,14 @@ To find out the fastest way to create an SQLite DB with one billion random rows.
 
 Read this blog post for the more context - [Inserting One Billion Rows in SQLite Under A Minute](https://avi.im/2021/fast-sqlite-inserts/)
 
+## Leaderboard
+
+Variant       | Time
+------------- | -------------
+Rust  | 33 seconds
+PyPy  | 126 seconds
+CPython  | 210 seconds
+
 ## Current Benchmark
 
 ### Python
