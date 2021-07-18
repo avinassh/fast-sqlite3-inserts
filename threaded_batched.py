@@ -1,3 +1,13 @@
+""" batched, sqlite3 optimised and multi threaded version.
+
+This version builds from sqlite3_opt_batched.py, but this one is multithreaded and probabaly the complex variant of all python ones.
+
+We have a queue, spawn a single writer thread which consumes from queue and writes to SQLite. Then we spawn few more producer threads
+which generate the data, push to queue.
+
+previous: sqlite3_opt_batched.py
+"""
+
 import queue
 import sqlite3
 import threading
@@ -52,7 +62,9 @@ def producer(count: int):
 
 def main():
     total_rows = 100_000_000
-    # start the consumer
+    # start the consumer. Marks this thread as daemon thread. Our main / program exits only
+    # when the consumer thread has returned
+    # https://docs.python.org/3.8/library/threading.html#thread-objects
     threading.Thread(target=consumer, daemon=True).start()
 
     # we would want to launch as many as producers, so we will take the max CPU value

@@ -1,3 +1,11 @@
+//! prepared statements
+//!
+//! This is very similar to basic.rs, just that it uses prepared statements. We have a long for loop
+//! of 100M and insert each row one by one.
+//!
+//! previous: basic_async.rs
+//! next: basic_batched.rs
+
 use rusqlite::{params, Connection, Transaction};
 
 mod common;

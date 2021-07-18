@@ -1,3 +1,11 @@
+//! naive but async version
+//!
+//! This is very similar to basic.rs, just that it is asynchronous. I also wanted to try out sqlx
+//! and rest of all the examples are sync and uses rusqlite
+//!
+//! previous: basic.rs
+//! next: basic_prep.rs
+
 use std::str::FromStr;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous};

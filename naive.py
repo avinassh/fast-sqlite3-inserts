@@ -1,3 +1,13 @@
+""" naive version
+
+This is the first version I came up with. This is very close to how I would write in a day to day life.
+
+This has no SQLite optimisations and no batching. I just have a long for loop where it loops over 10M
+and inserts the rows one by one.
+
+next: naive_batched.py
+"""
+
 import sqlite3
 
 from commons import get_random_age, get_random_active, get_random_bool, get_random_area_code, create_table

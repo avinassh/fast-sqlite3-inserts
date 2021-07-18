@@ -1,3 +1,12 @@
+""" naive, sqlite3 optimised.
+
+This version builds from naive.py, but this one includes SQLite3 optimisations. However, there is no batching involved and we have
+a single loop of 100M.
+
+previous: naive_batched.py
+next: sqlite3_opt_batched.py
+"""
+
 import sqlite3
 
 from commons import get_random_age, get_random_active, get_random_bool, get_random_area_code, create_table

@@ -1,3 +1,9 @@
+""" busy loop
+
+This code does not really do anything, just runs two for loops. It has no SQL code. The idea was to measure how
+much time python spending just to run a for loop, generating data.
+"""
+
 import sqlite3
 
 from commons import get_random_age, get_random_active, get_random_bool, get_random_area_code, create_table
