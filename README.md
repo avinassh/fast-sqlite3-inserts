@@ -6,6 +6,8 @@ Read this blog post for the more context - [Inserting One Billion Rows in SQLite
 
 ## Leaderboard
 
+(for 100M insertions)
+
 Variant       | Time
 ------------- | -------------
 Rust  | 33 seconds
