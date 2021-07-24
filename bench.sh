@@ -121,3 +121,9 @@ rm -rf threaded_batched.db threaded_batched.db-shm threaded_batched.db-wal
 cargo build --release --quiet --bin threaded_batched
 echo "$(date)" "[RUST] threaded_batched.rs (100_000_000) inserts"
 time ./target/release/threaded_batched
+
+# benching where the random generator is exported as a virtual table in sqlite
+rm -rf vtable.db
+cargo build --release --quiet --bin vtable
+echo "$(date)" "[RUST] vtable.rs (100_000_000) inserts"
+time ./target/release/vtable
