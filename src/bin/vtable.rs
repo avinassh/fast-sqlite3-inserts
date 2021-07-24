@@ -4,6 +4,7 @@ use std::mem::MaybeUninit;
 use std::str::from_utf8_unchecked;
 
 use rusqlite::{Connection, Result, Error, params};
+use rusqlite::types::Null;
 use rusqlite::vtab::{
     Context, Values,
     VTab, VTabConnection, IndexInfo, sqlite3_vtab,
@@ -86,7 +87,7 @@ struct RandVTableCursor<'vtab> {
 
     rowid: u64,
 
-    area_code: [u8; 6],
+    area_code: Option<[u8; 6]>,
     age: i8,
     active: i8,
 }
@@ -96,7 +97,7 @@ impl<'vtab> RandVTableCursor<'vtab> {
             base: unsafe { MaybeUninit::zeroed().assume_init() },
             phantom: PhantomData,
             rowid: 0,
-            area_code: common::get_random_area_code_u8(),
+            area_code: common::get_random_optional_area_code_u8(),
             age: common::get_random_age(),
             active: common::get_random_active(),
         }
@@ -116,7 +117,7 @@ unsafe impl<'vtab> VTabCursor for RandVTableCursor<'vtab> {
     fn next(&mut self) -> Result<()> {
         self.rowid += 1;
 
-        self.area_code = common::get_random_area_code_u8();
+        self.area_code = common::get_random_optional_area_code_u8();
         self.age       = common::get_random_age();
         self.active    = common::get_random_active();
 
@@ -130,7 +131,13 @@ unsafe impl<'vtab> VTabCursor for RandVTableCursor<'vtab> {
 
     fn column(&self, ctx: &mut Context, i: c_int) -> Result<()> {
         match i {
-            0 => ctx.set_result(unsafe { &from_utf8_unchecked(&self.area_code) })?,
+            0 => {
+                if let Some(area_code) = self.area_code {
+                    ctx.set_result(unsafe { &from_utf8_unchecked(&area_code) })?;
+                } else {
+                    ctx.set_result(&Null)?;
+                }
+            },
             1 => ctx.set_result(&self.age)?,
             2 => ctx.set_result(&self.active)?,
             _ => return Err(Error::InvalidColumnIndex(i as usize)),

@@ -32,3 +32,11 @@ pub fn get_random_area_code_u8() -> [u8; 6] {
 
     ret
 }
+
+pub fn get_random_optional_area_code_u8() -> Option<[u8; 6]> {
+    if get_random_bool() {
+        Some(get_random_area_code_u8())
+    } else {
+        None
+    }
+}
