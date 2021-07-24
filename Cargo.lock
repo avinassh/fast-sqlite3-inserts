@@ -832,6 +832,7 @@ dependencies = [
  "fallible-iterator",
  "fallible-streaming-iterator",
  "hashlink 0.7.0",
+ "lazy_static",
  "libsqlite3-sys",
  "memchr",
  "smallvec",
