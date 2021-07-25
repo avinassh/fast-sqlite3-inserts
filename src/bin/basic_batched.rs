@@ -8,6 +8,7 @@
 //! next: basic_batched_wp.rs
 
 use rusqlite::{Connection, ToSql, Transaction};
+use rsor::Slice;
 
 mod common;
 
@@ -46,34 +47,35 @@ fn faker(tx: &Transaction, count: i64) {
 
     let mut stmt_with_area = tx.prepare_cached(st1.as_str()).unwrap();
     let mut stmt = tx.prepare_cached(st2.as_str()).unwrap();
+    let mut params_with_area = Vec::with_capacity(min_batch_size as usize);
+    let mut param_values = Slice::with_capacity(min_batch_size as usize * 3);
     for _ in 0..(count / min_batch_size) {
         let with_area = common::get_random_bool();
         let age = common::get_random_age();
         let is_active = common::get_random_active();
-        let mut param_values: Vec<_> = Vec::new();
         if with_area {
-            // lets prepare the batch
-            let mut vector = Vec::<(String, i8, i8)>::new();
             for _ in 0..min_batch_size {
                 let area_code = common::get_random_area_code();
-                vector.push((area_code, age, is_active));
+                params_with_area.push((area_code,));
             }
-            for batch in vector.iter() {
-                param_values.push(&batch.0 as &dyn ToSql);
-                param_values.push(&batch.1 as &dyn ToSql);
-                param_values.push(&batch.2 as &dyn ToSql);
-            }
+            let param_values = param_values.fill(|mut v| {
+                for params in &params_with_area {
+                    v.push(&params.0 as &dyn ToSql);
+                    v.push(&age as &dyn ToSql);
+                    v.push(&is_active as &dyn ToSql);
+                }
+                v
+            });
             stmt_with_area.execute(&*param_values).unwrap();
+            params_with_area.clear();
         } else {
-            // lets prepare the batch
-            let mut vector = Vec::<(i8, i8)>::new();
-            for _ in 0..min_batch_size {
-                vector.push((age, is_active));
-            }
-            for batch in vector.iter() {
-                param_values.push(&batch.0 as &dyn ToSql);
-                param_values.push(&batch.1 as &dyn ToSql);
-            }
+            let param_values = param_values.fill(|mut v| {
+                for _ in 0..min_batch_size {
+                    v.push(&age as &dyn ToSql);
+                    v.push(&is_active as &dyn ToSql);
+                }
+                v
+            });
             stmt.execute(&*param_values).unwrap();
         }
     }
