@@ -11,3 +11,6 @@ tokio = {version = "1.5.0", features = ["full"]}
 rand = "0.8.3"
 num_cpus = "1.0"
 rusqlite = "0.25.3"
+
+[build-dependencies]
+once_cell = "1.8.0"
