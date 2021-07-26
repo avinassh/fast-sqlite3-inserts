@@ -21,3 +21,6 @@ pub fn get_random_area_code() -> String {
     let mut rng = rand::thread_rng();
     format!("{:06}", rng.gen_range(0..999999))
 }
+
+fn main() {
+}
