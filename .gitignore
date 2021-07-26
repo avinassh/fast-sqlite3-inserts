@@ -159,3 +159,8 @@ dmypy.json
 
 # pkg-config files
 *.pc
+
+# c objects and archive
+*.o
+*.a
+*.so
