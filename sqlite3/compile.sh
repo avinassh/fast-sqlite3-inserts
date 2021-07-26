@@ -7,7 +7,8 @@ cd "$base"
 clang -O2 -flto -c sqlite3.c -o sqlite3.o
 ar crus libsqlite3.a sqlite3.o
 
-exec cat >sqlite3.pc << EOF
+mkdir pkgconfig
+exec cat >pkgconfig/sqlite3.pc << EOF
 # Package Information for pkg-config
 
 prefix="${base}"
