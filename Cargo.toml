@@ -10,4 +10,4 @@ sqlx = { version = "0.5.2", features = ["runtime-tokio-native-tls", "sqlite"]}
 tokio = {version = "1.5.0", features = ["full"]}
 rand = "0.8.3"
 num_cpus = "1.0"
-rusqlite = "0.25.3"
+rusqlite = { version = "0.25.3", features = ["buildtime_bindgen"] }
