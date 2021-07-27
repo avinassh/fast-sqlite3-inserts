@@ -4,7 +4,7 @@ base="$(dirname `realpath $0`)"
 
 cd "$base"
 
-clang -O2 -flto -c sqlite3.c -o sqlite3.o
+clang -O2 -flto -march=native -c sqlite3.c -o sqlite3.o
 ar crus libsqlite3.a sqlite3.o
 
 mkdir -p pkgconfig
