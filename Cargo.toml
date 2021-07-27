@@ -4,6 +4,11 @@ version = "0.1.0"
 authors = ["avi <hi@avi.im>"]
 edition = "2018"
 
+[profile.release]
+lto = true
+panic = "abort"
+codegen-units = 1
+
 [features]
 async-sql = ["sqlx", "tokio"]
 
