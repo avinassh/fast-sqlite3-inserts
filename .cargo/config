@@ -1,2 +1,0 @@
-[build]
-rustflags = ["-C", "target-cpu=native", "-C", "linker=clang", "-C", "linker-plugin-lto", "-C", "link-args=-fuse-ld=lld -flto"]

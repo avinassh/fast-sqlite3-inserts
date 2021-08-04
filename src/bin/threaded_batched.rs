@@ -8,12 +8,12 @@
 //! previous: basic_batched.rs
 //! next: threaded_str_batched.rs
 
+use fast_sqlite3_inserts::*;
+
 use rusqlite::{Connection, ToSql};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
-
-mod common;
 
 static MIN_BATCH_SIZE: i64 = 50;
 
@@ -87,15 +87,15 @@ fn producer(tx: Sender<ParamValues>, count: i64) {
         panic!("count cant be less than min batch size");
     }
     for _ in 0..(count / MIN_BATCH_SIZE) {
-        let with_area = common::get_random_bool();
-        let age = common::get_random_age();
-        let is_active = common::get_random_active();
+        let with_area = get_random_bool();
+        let age = get_random_age();
+        let is_active = get_random_active();
         let mut param_values: Vec<_> = Vec::new();
         if with_area {
             // lets prepare the batch
             let mut vector = Vec::<(String, i8, i8)>::new();
             for _ in 0..MIN_BATCH_SIZE {
-                let area_code = common::get_random_area_code();
+                let area_code = get_random_area_code();
                 vector.push((area_code, age, is_active));
             }
             for batch in vector.iter() {

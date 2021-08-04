@@ -1,8 +1,11 @@
 [package]
-name = "fast-sqlite3-inserts"
+name = "fast_sqlite3_inserts"
 version = "0.1.0"
 authors = ["avi <hi@avi.im>"]
 edition = "2018"
+
+[workspace]
+members = ["sqlite3-binding"]
 
 [profile.release]
 lto = true
@@ -18,4 +21,4 @@ sqlx = { version = "0.5.2", features = ["runtime-tokio-native-tls", "sqlite"], o
 tokio = { version = "1.5.0", features = ["full"], optional = true }
 rand = "0.8.3"
 num_cpus = "1.0"
-rusqlite = { version = "0.25.3", default-features = false, features = ["buildtime_bindgen"] }
+sqlite3-binding = { path = "sqlite3-binding" }

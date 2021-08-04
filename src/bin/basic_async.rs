@@ -6,7 +6,7 @@
 //! previous: basic.rs
 //! next: basic_prep.rs
 
-mod common;
+use fast_sqlite3_inserts::*;
     
 #[cfg(feature = "async-sql")]
 mod inline {
@@ -25,11 +25,11 @@ mod inline {
             .prepare("INSERT INTO user VALUES (NULL, NULL, ?, ?)")
             .await?;
         for _ in 0..count {
-            let with_area = common::get_random_bool();
-            let age = common::get_random_age();
-            let is_active = common::get_random_active();
+            let with_area = get_random_bool();
+            let age = get_random_age();
+            let is_active = get_random_active();
             if with_area {
-                let area_code = common::get_random_area_code();
+                let area_code = get_random_area_code();
                 stmt_with_area
                     .query()
                     .bind(area_code)
