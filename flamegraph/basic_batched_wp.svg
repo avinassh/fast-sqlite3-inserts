@@ -1,0 +1,412 @@
+<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg version="1.1" width="1200" height="198" onload="init(evt)" viewBox="0 0 1200 198" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:fg="http://github.com/jonhoo/inferno"><!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.--><!--NOTES: --><defs><linearGradient id="background" y1="0" y2="1" x1="0" x2="0"><stop stop-color="#eeeeee" offset="5%"/><stop stop-color="#eeeeb0" offset="95%"/></linearGradient></defs><style type="text/css">
+text { font-family:"Verdana"; font-size:12px; fill:rgb(0,0,0); }
+#title { text-anchor:middle; font-size:17px; }
+#search { opacity:0.1; cursor:pointer; }
+#search:hover, #search.show { opacity:1; }
+#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#unzoom { cursor:pointer; }
+#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+.hide { display:none; }
+.parent { opacity:0.5; }
+</style><script type="text/ecmascript"><![CDATA[var nametype = 'Function:';
+var fontsize = 12;
+var fontwidth = 0.59;
+var xpad = 10;
+var inverted = false;
+var searchcolor = 'rgb(230,0,230)';
+var fluiddrawing = true;
+var truncate_text_right = false;]]><![CDATA["use strict";
+var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames;
+function init(evt) {
+    details = document.getElementById("details").firstChild;
+    searchbtn = document.getElementById("search");
+    unzoombtn = document.getElementById("unzoom");
+    matchedtxt = document.getElementById("matched");
+    svg = document.getElementsByTagName("svg")[0];
+    frames = document.getElementById("frames");
+    total_samples = parseInt(frames.attributes.total_samples.value);
+    searching = 0;
+
+    // Use GET parameters to restore a flamegraph's state.
+    var restore_state = function() {
+        var params = get_params();
+        if (params.x && params.y)
+            zoom(find_group(document.querySelector('[*|x="' + params.x + '"][y="' + params.y + '"]')));
+        if (params.s)
+            search(params.s);
+    };
+
+    if (fluiddrawing) {
+        // Make width dynamic so the SVG fits its parent's width.
+        svg.removeAttribute("width");
+        // Edge requires us to have a viewBox that gets updated with size changes.
+        var isEdge = /Edge\/\d./i.test(navigator.userAgent);
+        if (!isEdge) {
+          svg.removeAttribute("viewBox");
+        }
+        var update_for_width_change = function() {
+            if (isEdge) {
+                svg.attributes.viewBox.value = "0 0 " + svg.width.baseVal.value + " " + svg.height.baseVal.value;
+            }
+
+            // Keep consistent padding on left and right of frames container.
+            frames.attributes.width.value = svg.width.baseVal.value - xpad * 2;
+
+            // Text truncation needs to be adjusted for the current width.
+            var el = frames.children;
+            for(var i = 0; i < el.length; i++) {
+                update_text(el[i]);
+            }
+
+            // Keep search elements at a fixed distance from right edge.
+            var svgWidth = svg.width.baseVal.value;
+            searchbtn.attributes.x.value = svgWidth - xpad - 100;
+            matchedtxt.attributes.x.value = svgWidth - xpad - 100;
+        };
+        window.addEventListener('resize', function() {
+            update_for_width_change();
+        });
+        // This needs to be done asynchronously for Safari to work.
+        setTimeout(function() {
+            unzoom();
+            update_for_width_change();
+            restore_state();
+        }, 0);
+    } else {
+        restore_state();
+    }
+}
+// event listeners
+window.addEventListener("click", function(e) {
+    var target = find_group(e.target);
+    if (target) {
+        if (target.nodeName == "a") {
+            if (e.ctrlKey === false) return;
+            e.preventDefault();
+        }
+        if (target.classList.contains("parent")) unzoom();
+        zoom(target);
+
+        // set parameters for zoom state
+        var el = target.querySelector("rect");
+        if (el && el.attributes && el.attributes.y && el.attributes["fg:x"]) {
+            var params = get_params()
+            params.x = el.attributes["fg:x"].value;
+            params.y = el.attributes.y.value;
+            history.replaceState(null, null, parse_params(params));
+        }
+    }
+    else if (e.target.id == "unzoom") {
+        unzoom();
+
+        // remove zoom state
+        var params = get_params();
+        if (params.x) delete params.x;
+        if (params.y) delete params.y;
+        history.replaceState(null, null, parse_params(params));
+    }
+    else if (e.target.id == "search") search_prompt();
+}, false)
+// mouse-over for info
+// show
+window.addEventListener("mouseover", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+}, false)
+// clear
+window.addEventListener("mouseout", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = ' ';
+}, false)
+// ctrl-F for search
+window.addEventListener("keydown",function (e) {
+    if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+        e.preventDefault();
+        search_prompt();
+    }
+}, false)
+// functions
+function get_params() {
+    var params = {};
+    var paramsarr = window.location.search.substr(1).split('&');
+    for (var i = 0; i < paramsarr.length; ++i) {
+        var tmp = paramsarr[i].split("=");
+        if (!tmp[0] || !tmp[1]) continue;
+        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+    }
+    return params;
+}
+function parse_params(params) {
+    var uri = "?";
+    for (var key in params) {
+        uri += key + '=' + encodeURIComponent(params[key]) + '&';
+    }
+    if (uri.slice(-1) == "&")
+        uri = uri.substring(0, uri.length - 1);
+    if (uri == '?')
+        uri = window.location.href.split('?')[0];
+    return uri;
+}
+function find_child(node, selector) {
+    var children = node.querySelectorAll(selector);
+    if (children.length) return children[0];
+    return;
+}
+function find_group(node) {
+    var parent = node.parentElement;
+    if (!parent) return;
+    if (parent.id == "frames") return node;
+    return find_group(parent);
+}
+function orig_save(e, attr, val) {
+    if (e.attributes["fg:orig_" + attr] != undefined) return;
+    if (e.attributes[attr] == undefined) return;
+    if (val == undefined) val = e.attributes[attr].value;
+    e.setAttribute("fg:orig_" + attr, val);
+}
+function orig_load(e, attr) {
+    if (e.attributes["fg:orig_"+attr] == undefined) return;
+    e.attributes[attr].value = e.attributes["fg:orig_" + attr].value;
+    e.removeAttribute("fg:orig_" + attr);
+}
+function g_to_text(e) {
+    var text = find_child(e, "title").firstChild.nodeValue;
+    return (text)
+}
+function g_to_func(e) {
+    var func = g_to_text(e);
+    // if there's any manipulation we want to do to the function
+    // name before it's searched, do it here before returning.
+    return (func);
+}
+function update_text(e) {
+    var r = find_child(e, "rect");
+    var t = find_child(e, "text");
+    var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+    // Smaller than this size won't fit anything
+    if (w < 2 * fontsize * fontwidth) {
+        t.textContent = "";
+        return;
+    }
+    t.textContent = txt;
+    // Fit in full text width
+    if (/^ *\$/.test(txt) || t.getComputedTextLength() < w)
+        return;
+    if (truncate_text_right) {
+        // Truncate the right side of the text.
+        for (var x = txt.length - 2; x > 0; x--) {
+            if (t.getSubStringLength(0, x + 2) <= w) {
+                t.textContent = txt.substring(0, x) + "..";
+                return;
+            }
+        }
+    } else {
+        // Truncate the left side of the text.
+        for (var x = 2; x < txt.length; x++) {
+            if (t.getSubStringLength(x - 2, txt.length) <= w) {
+                t.textContent = ".." + txt.substring(x, txt.length);
+                return;
+            }
+        }
+    }
+    t.textContent = "";
+}
+// zoom
+function zoom_reset(e) {
+    if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * parseInt(e.attributes["fg:x"].value) / total_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / total_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_reset(c[i]);
+    }
+}
+function zoom_child(e, x, zoomed_width_samples) {
+    if (e.tagName == "text") {
+        var parent_x = parseFloat(find_child(e.parentNode, "rect[x]").attributes.x.value);
+        e.attributes.x.value = format_percent(parent_x + (100 * 3 / frames.attributes.width.value));
+    } else if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * (parseInt(e.attributes["fg:x"].value) - x) / zoomed_width_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / zoomed_width_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_child(c[i], x, zoomed_width_samples);
+    }
+}
+function zoom_parent(e) {
+    if (e.attributes) {
+        if (e.attributes.x != undefined) {
+            e.attributes.x.value = "0.0%";
+        }
+        if (e.attributes.width != undefined) {
+            e.attributes.width.value = "100.0%";
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_parent(c[i]);
+    }
+}
+function zoom(node) {
+    var attr = find_child(node, "rect").attributes;
+    var width = parseInt(attr["fg:w"].value);
+    var xmin = parseInt(attr["fg:x"].value);
+    var xmax = xmin + width;
+    var ymin = parseFloat(attr.y.value);
+    unzoombtn.classList.remove("hide");
+    var el = frames.children;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var a = find_child(e, "rect").attributes;
+        var ex = parseInt(a["fg:x"].value);
+        var ew = parseInt(a["fg:w"].value);
+        // Is it an ancestor
+        if (!inverted) {
+            var upstack = parseFloat(a.y.value) > ymin;
+        } else {
+            var upstack = parseFloat(a.y.value) < ymin;
+        }
+        if (upstack) {
+            // Direct ancestor
+            if (ex <= xmin && (ex+ew) >= xmax) {
+                e.classList.add("parent");
+                zoom_parent(e);
+                update_text(e);
+            }
+            // not in current path
+            else
+                e.classList.add("hide");
+        }
+        // Children maybe
+        else {
+            // no common path
+            if (ex < xmin || ex >= xmax) {
+                e.classList.add("hide");
+            }
+            else {
+                zoom_child(e, xmin, width);
+                update_text(e);
+            }
+        }
+    }
+}
+function unzoom() {
+    unzoombtn.classList.add("hide");
+    var el = frames.children;
+    for(var i = 0; i < el.length; i++) {
+        el[i].classList.remove("parent");
+        el[i].classList.remove("hide");
+        zoom_reset(el[i]);
+        update_text(el[i]);
+    }
+}
+// search
+function reset_search() {
+    var el = document.querySelectorAll("#frames rect");
+    for (var i = 0; i < el.length; i++) {
+        orig_load(el[i], "fill")
+    }
+    var params = get_params();
+    delete params.s;
+    history.replaceState(null, null, parse_params(params));
+}
+function search_prompt() {
+    if (!searching) {
+        var term = prompt("Enter a search term (regexp " +
+            "allowed, eg: ^ext4_)", "");
+        if (term != null) {
+            search(term)
+        }
+    } else {
+        reset_search();
+        searching = 0;
+        searchbtn.classList.remove("show");
+        searchbtn.firstChild.nodeValue = "Search"
+        matchedtxt.classList.add("hide");
+        matchedtxt.firstChild.nodeValue = ""
+    }
+}
+function search(term) {
+    var re = new RegExp(term);
+    var el = frames.children;
+    var matches = new Object();
+    var maxwidth = 0;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        // Skip over frames which are either not visible, or below the zoomed-to frame
+        if (e.classList.contains("hide") || e.classList.contains("parent")) {
+            continue;
+        }
+        var func = g_to_func(e);
+        var rect = find_child(e, "rect");
+        if (func == null || rect == null)
+            continue;
+        // Save max width. Only works as we have a root frame
+        var w = parseInt(rect.attributes["fg:w"].value);
+        if (w > maxwidth)
+            maxwidth = w;
+        if (func.match(re)) {
+            // highlight
+            var x = parseInt(rect.attributes["fg:x"].value);
+            orig_save(rect, "fill");
+            rect.attributes.fill.value = searchcolor;
+            // remember matches
+            if (matches[x] == undefined) {
+                matches[x] = w;
+            } else {
+                if (w > matches[x]) {
+                    // overwrite with parent
+                    matches[x] = w;
+                }
+            }
+            searching = 1;
+        }
+    }
+    if (!searching)
+        return;
+    var params = get_params();
+    params.s = term;
+    history.replaceState(null, null, parse_params(params));
+
+    searchbtn.classList.add("show");
+    searchbtn.firstChild.nodeValue = "Reset Search";
+    // calculate percent matched, excluding vertical overlap
+    var count = 0;
+    var lastx = -1;
+    var lastw = 0;
+    var keys = Array();
+    for (k in matches) {
+        if (matches.hasOwnProperty(k))
+            keys.push(k);
+    }
+    // sort the matched frames by their x location
+    // ascending, then width descending
+    keys.sort(function(a, b){
+        return a - b;
+    });
+    // Step through frames saving only the biggest bottom-up frames
+    // thanks to the sort order. This relies on the tree property
+    // where children are always smaller than their parents.
+    for (var k in keys) {
+        var x = parseInt(keys[k]);
+        var w = matches[keys[k]];
+        if (x >= lastx + lastw) {
+            count += w;
+            lastx = x;
+            lastw = w;
+        }
+    }
+    // display matched percent
+    matchedtxt.classList.remove("hide");
+    var pct = 100 * count / maxwidth;
+    if (pct != 100) pct = pct.toFixed(1);
+    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+}
+function format_percent(n) {
+    return n.toFixed(4) + "%";
+}
+]]></script><rect x="0" y="0" width="100%" height="198" fill="url(#background)"/><text id="title" x="50.0000%" y="24.00">Flame Graph</text><text id="details" x="10" y="181.00"> </text><text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom</text><text id="search" x="1090" y="24.00">Search</text><text id="matched" x="1090" y="181.00"> </text><svg id="frames" x="10" width="1180" total_samples="146797"><g><title>[libc-2.33.so] (132 samples, 0.09%)</title><rect x="0.3624%" y="101" width="0.0899%" height="15" fill="rgb(227,0,7)" fg:x="532" fg:w="132"/><text x="0.6124%" y="111.50"></text></g><g><title>&lt;&amp;mut W as core::fmt::Write&gt;::write_str (1,115 samples, 0.76%)</title><rect x="0.0082%" y="117" width="0.7596%" height="15" fill="rgb(217,0,24)" fg:x="12" fg:w="1115"/><text x="0.2582%" y="127.50"></text></g><g><title>sqlite3DbFree (463 samples, 0.32%)</title><rect x="0.4523%" y="101" width="0.3154%" height="15" fill="rgb(221,193,54)" fg:x="664" fg:w="463"/><text x="0.7023%" y="111.50"></text></g><g><title>cfree (463 samples, 0.32%)</title><rect x="0.4523%" y="85" width="0.3154%" height="15" fill="rgb(248,212,6)" fg:x="664" fg:w="463"/><text x="0.7023%" y="95.50"></text></g><g><title>[libc-2.33.so] (463 samples, 0.32%)</title><rect x="0.4523%" y="69" width="0.3154%" height="15" fill="rgb(208,68,35)" fg:x="664" fg:w="463"/><text x="0.7023%" y="79.50"></text></g><g><title>[libc-2.33.so] (463 samples, 0.32%)</title><rect x="0.4523%" y="53" width="0.3154%" height="15" fill="rgb(232,128,0)" fg:x="664" fg:w="463"/><text x="0.7023%" y="63.50"></text></g><g><title>[libc-2.33.so] (199 samples, 0.14%)</title><rect x="0.6322%" y="37" width="0.1356%" height="15" fill="rgb(207,160,47)" fg:x="928" fg:w="199"/><text x="0.8822%" y="47.50"></text></g><g><title>&lt;alloc::string::String as core::fmt::Display&gt;::fmt (17 samples, 0.01%)</title><rect x="0.7677%" y="117" width="0.0116%" height="15" fill="rgb(228,23,34)" fg:x="1127" fg:w="17"/><text x="1.0177%" y="127.50"></text></g><g><title>[unknown] (23 samples, 0.02%)</title><rect x="1.5702%" y="101" width="0.0157%" height="15" fill="rgb(218,30,26)" fg:x="2305" fg:w="23"/><text x="1.8202%" y="111.50"></text></g><g><title>basic_batched_wp::main (23 samples, 0.02%)</title><rect x="1.5702%" y="85" width="0.0157%" height="15" fill="rgb(220,122,19)" fg:x="2305" fg:w="23"/><text x="1.8202%" y="95.50"></text></g><g><title>basic_batched_wp::main (116 samples, 0.08%)</title><rect x="1.5859%" y="101" width="0.0790%" height="15" fill="rgb(250,228,42)" fg:x="2328" fg:w="116"/><text x="1.8359%" y="111.50"></text></g><g><title>core::fmt::Formatter::pad_integral (26 samples, 0.02%)</title><rect x="1.6703%" y="101" width="0.0177%" height="15" fill="rgb(240,193,28)" fg:x="2452" fg:w="26"/><text x="1.9203%" y="111.50"></text></g><g><title>core::fmt::Formatter::pad_integral::write_prefix (29 samples, 0.02%)</title><rect x="1.6880%" y="101" width="0.0198%" height="15" fill="rgb(216,20,37)" fg:x="2478" fg:w="29"/><text x="1.9380%" y="111.50"></text></g><g><title>core::fmt::num::imp::&lt;impl core::fmt::Display for i32&gt;::fmt (384 samples, 0.26%)</title><rect x="1.7078%" y="101" width="0.2616%" height="15" fill="rgb(206,188,39)" fg:x="2507" fg:w="384"/><text x="1.9578%" y="111.50"></text></g><g><title>core::fmt::write (25 samples, 0.02%)</title><rect x="1.9694%" y="101" width="0.0170%" height="15" fill="rgb(217,207,13)" fg:x="2891" fg:w="25"/><text x="2.2194%" y="111.50"></text></g><g><title>sqlite3WalkSelectExpr (43 samples, 0.03%)</title><rect x="1.9953%" y="101" width="0.0293%" height="15" fill="rgb(231,73,38)" fg:x="2929" fg:w="43"/><text x="2.2453%" y="111.50"></text></g><g><title>[basic_batched_wp] (2,043 samples, 1.39%)</title><rect x="0.7793%" y="117" width="1.3917%" height="15" fill="rgb(225,20,46)" fg:x="1144" fg:w="2043"/><text x="1.0293%" y="127.50"></text></g><g><title>walkExpr (215 samples, 0.15%)</title><rect x="2.0246%" y="101" width="0.1465%" height="15" fill="rgb(210,31,41)" fg:x="2972" fg:w="215"/><text x="2.2746%" y="111.50"></text></g><g><title>cfree (27 samples, 0.02%)</title><rect x="3.0941%" y="101" width="0.0184%" height="15" fill="rgb(221,200,47)" fg:x="4542" fg:w="27"/><text x="3.3441%" y="111.50"></text></g><g><title>[libc-2.33.so] (1,395 samples, 0.95%)</title><rect x="2.1751%" y="117" width="0.9503%" height="15" fill="rgb(226,26,5)" fg:x="3193" fg:w="1395"/><text x="2.4251%" y="127.50"></text></g><g><title>&lt;&amp;mut W as core::fmt::Write&gt;::write_str (901 samples, 0.61%)</title><rect x="3.1274%" y="101" width="0.6138%" height="15" fill="rgb(249,33,26)" fg:x="4591" fg:w="901"/><text x="3.3774%" y="111.50"></text></g><g><title>[libc-2.33.so] (353 samples, 0.24%)</title><rect x="3.5008%" y="85" width="0.2405%" height="15" fill="rgb(235,183,28)" fg:x="5139" fg:w="353"/><text x="3.7508%" y="95.50"></text></g><g><title>[basic_batched_wp] (16 samples, 0.01%)</title><rect x="3.8325%" y="85" width="0.0109%" height="15" fill="rgb(221,5,38)" fg:x="5626" fg:w="16"/><text x="4.0825%" y="95.50"></text></g><g><title>core::fmt::Formatter::pad (16 samples, 0.01%)</title><rect x="3.8325%" y="69" width="0.0109%" height="15" fill="rgb(247,18,42)" fg:x="5626" fg:w="16"/><text x="4.0825%" y="79.50"></text></g><g><title>core::fmt::Formatter::pad_integral::write_prefix (28 samples, 0.02%)</title><rect x="3.8516%" y="85" width="0.0191%" height="15" fill="rgb(241,131,45)" fg:x="5654" fg:w="28"/><text x="4.1016%" y="95.50"></text></g><g><title>core::fmt::write (515 samples, 0.35%)</title><rect x="3.8707%" y="85" width="0.3508%" height="15" fill="rgb(249,31,29)" fg:x="5682" fg:w="515"/><text x="4.1207%" y="95.50"></text></g><g><title>[basic_batched_wp] (725 samples, 0.49%)</title><rect x="3.7412%" y="101" width="0.4939%" height="15" fill="rgb(225,111,53)" fg:x="5492" fg:w="725"/><text x="3.9912%" y="111.50"></text></g><g><title>walkExpr (18 samples, 0.01%)</title><rect x="4.2228%" y="85" width="0.0123%" height="15" fill="rgb(238,160,17)" fg:x="6199" fg:w="18"/><text x="4.4728%" y="95.50"></text></g><g><title>codeInteger (53 samples, 0.04%)</title><rect x="4.7583%" y="85" width="0.0361%" height="15" fill="rgb(214,148,48)" fg:x="6985" fg:w="53"/><text x="5.0083%" y="95.50"></text></g><g><title>[libc-2.33.so] (829 samples, 0.56%)</title><rect x="4.2351%" y="101" width="0.5647%" height="15" fill="rgb(232,36,49)" fg:x="6217" fg:w="829"/><text x="4.4851%" y="111.50"></text></g><g><title>selectInnerLoop (1,075 samples, 0.73%)</title><rect x="4.8121%" y="85" width="0.7323%" height="15" fill="rgb(209,103,24)" fg:x="7064" fg:w="1075"/><text x="5.0621%" y="95.50"></text></g><g><title>sqlite3ExprCodeExprList (48 samples, 0.03%)</title><rect x="5.5444%" y="85" width="0.0327%" height="15" fill="rgb(229,88,8)" fg:x="8139" fg:w="48"/><text x="5.7944%" y="95.50"></text></g><g><title>[unknown] (2,130 samples, 1.45%)</title><rect x="4.7998%" y="101" width="1.4510%" height="15" fill="rgb(213,181,19)" fg:x="7046" fg:w="2130"/><text x="5.0498%" y="111.50"></text></g><g><title>sqlite3GetToken (989 samples, 0.67%)</title><rect x="5.5771%" y="85" width="0.6737%" height="15" fill="rgb(254,191,54)" fg:x="8187" fg:w="989"/><text x="5.8271%" y="95.50"></text></g><g><title>core::fmt::Formatter::pad_integral::write_prefix (140 samples, 0.10%)</title><rect x="6.7263%" y="85" width="0.0954%" height="15" fill="rgb(241,83,37)" fg:x="9874" fg:w="140"/><text x="6.9763%" y="95.50"></text></g><g><title>alloc::fmt::format (1,107 samples, 0.75%)</title><rect x="6.2508%" y="101" width="0.7541%" height="15" fill="rgb(233,36,39)" fg:x="9176" fg:w="1107"/><text x="6.5008%" y="111.50"></text></g><g><title>malloc (269 samples, 0.18%)</title><rect x="6.8217%" y="85" width="0.1832%" height="15" fill="rgb(226,3,54)" fg:x="10014" fg:w="269"/><text x="7.0717%" y="95.50"></text></g><g><title>alloc::raw_vec::RawVec&lt;T,A&gt;::reserve::do_reserve_and_handle (51 samples, 0.03%)</title><rect x="7.0049%" y="101" width="0.0347%" height="15" fill="rgb(245,192,40)" fg:x="10283" fg:w="51"/><text x="7.2549%" y="111.50"></text></g><g><title>alloc::raw_vec::finish_grow (109 samples, 0.07%)</title><rect x="7.0397%" y="101" width="0.0743%" height="15" fill="rgb(238,167,29)" fg:x="10334" fg:w="109"/><text x="7.2897%" y="111.50"></text></g><g><title>malloc (47 samples, 0.03%)</title><rect x="7.0819%" y="85" width="0.0320%" height="15" fill="rgb(232,182,51)" fg:x="10396" fg:w="47"/><text x="7.3319%" y="95.50"></text></g><g><title>applyAffinity (119 samples, 0.08%)</title><rect x="7.1153%" y="101" width="0.0811%" height="15" fill="rgb(231,60,39)" fg:x="10445" fg:w="119"/><text x="7.3653%" y="111.50"></text></g><g><title>[libc-2.33.so] (89 samples, 0.06%)</title><rect x="7.3762%" y="85" width="0.0606%" height="15" fill="rgb(208,69,12)" fg:x="10828" fg:w="89"/><text x="7.6262%" y="95.50"></text></g><g><title>cfree (359 samples, 0.24%)</title><rect x="7.4368%" y="85" width="0.2446%" height="15" fill="rgb(235,93,37)" fg:x="10917" fg:w="359"/><text x="7.6868%" y="95.50"></text></g><g><title>[libc-2.33.so] (257 samples, 0.18%)</title><rect x="7.5063%" y="69" width="0.1751%" height="15" fill="rgb(213,116,39)" fg:x="11019" fg:w="257"/><text x="7.7563%" y="79.50"></text></g><g><title>core::fmt::Formatter::pad_integral (16 samples, 0.01%)</title><rect x="7.6814%" y="85" width="0.0109%" height="15" fill="rgb(222,207,29)" fg:x="11276" fg:w="16"/><text x="7.9314%" y="95.50"></text></g><g><title>basic_batched_wp::main (735 samples, 0.50%)</title><rect x="7.2038%" y="101" width="0.5007%" height="15" fill="rgb(206,96,30)" fg:x="10575" fg:w="735"/><text x="7.4538%" y="111.50"></text></g><g><title>core::fmt::write (18 samples, 0.01%)</title><rect x="7.6923%" y="85" width="0.0123%" height="15" fill="rgb(218,138,4)" fg:x="11292" fg:w="18"/><text x="7.9423%" y="95.50"></text></g><g><title>btreeParseCellPtr (367 samples, 0.25%)</title><rect x="7.7045%" y="101" width="0.2500%" height="15" fill="rgb(250,191,14)" fg:x="11310" fg:w="367"/><text x="7.9545%" y="111.50"></text></g><g><title>cfree (161 samples, 0.11%)</title><rect x="7.9566%" y="101" width="0.1097%" height="15" fill="rgb(239,60,40)" fg:x="11680" fg:w="161"/><text x="8.2066%" y="111.50"></text></g><g><title>codeInteger (141 samples, 0.10%)</title><rect x="8.0662%" y="101" width="0.0961%" height="15" fill="rgb(206,27,48)" fg:x="11841" fg:w="141"/><text x="8.3162%" y="111.50"></text></g><g><title>core::fmt::Formatter::pad_integral (547 samples, 0.37%)</title><rect x="8.1671%" y="101" width="0.3726%" height="15" fill="rgb(225,35,8)" fg:x="11989" fg:w="547"/><text x="8.4171%" y="111.50"></text></g><g><title>core::fmt::Formatter::pad_integral::write_prefix (40 samples, 0.03%)</title><rect x="8.5397%" y="101" width="0.0272%" height="15" fill="rgb(250,213,24)" fg:x="12536" fg:w="40"/><text x="8.7897%" y="111.50"></text></g><g><title>core::fmt::num::imp::&lt;impl core::fmt::Display for i32&gt;::fmt (19 samples, 0.01%)</title><rect x="8.5669%" y="101" width="0.0129%" height="15" fill="rgb(247,123,22)" fg:x="12576" fg:w="19"/><text x="8.8169%" y="111.50"></text></g><g><title>core::fmt::num::imp::&lt;impl core::fmt::Display for i8&gt;::fmt (195 samples, 0.13%)</title><rect x="8.5799%" y="101" width="0.1328%" height="15" fill="rgb(231,138,38)" fg:x="12595" fg:w="195"/><text x="8.8299%" y="111.50"></text></g><g><title>core::fmt::write (59 samples, 0.04%)</title><rect x="8.7127%" y="101" width="0.0402%" height="15" fill="rgb(231,145,46)" fg:x="12790" fg:w="59"/><text x="8.9627%" y="111.50"></text></g><g><title>sqlite3DbFree (108 samples, 0.07%)</title><rect x="8.8190%" y="85" width="0.0736%" height="15" fill="rgb(251,118,11)" fg:x="12946" fg:w="108"/><text x="9.0690%" y="95.50"></text></g><g><title>dbMallocRawFinish (206 samples, 0.14%)</title><rect x="8.7529%" y="101" width="0.1403%" height="15" fill="rgb(217,147,25)" fg:x="12849" fg:w="206"/><text x="9.0029%" y="111.50"></text></g><g><title>getCellInfo (137 samples, 0.09%)</title><rect x="8.8932%" y="101" width="0.0933%" height="15" fill="rgb(247,81,37)" fg:x="13055" fg:w="137"/><text x="9.1432%" y="111.50"></text></g><g><title>insertCell (31 samples, 0.02%)</title><rect x="8.9927%" y="101" width="0.0211%" height="15" fill="rgb(209,12,38)" fg:x="13201" fg:w="31"/><text x="9.2427%" y="111.50"></text></g><g><title>malloc (49 samples, 0.03%)</title><rect x="9.0138%" y="101" width="0.0334%" height="15" fill="rgb(227,1,9)" fg:x="13232" fg:w="49"/><text x="9.2638%" y="111.50"></text></g><g><title>pcache1Free (30 samples, 0.02%)</title><rect x="9.0560%" y="101" width="0.0204%" height="15" fill="rgb(248,47,43)" fg:x="13294" fg:w="30"/><text x="9.3060%" y="111.50"></text></g><g><title>cfree (18 samples, 0.01%)</title><rect x="9.0642%" y="85" width="0.0123%" height="15" fill="rgb(221,10,30)" fg:x="13306" fg:w="18"/><text x="9.3142%" y="95.50"></text></g><g><title>[libc-2.33.so] (18 samples, 0.01%)</title><rect x="9.0642%" y="69" width="0.0123%" height="15" fill="rgb(210,229,1)" fg:x="13306" fg:w="18"/><text x="9.3142%" y="79.50"></text></g><g><title>rand_chacha::guts::refill_wide::impl_avx2 (48 samples, 0.03%)</title><rect x="9.0765%" y="101" width="0.0327%" height="15" fill="rgb(222,148,37)" fg:x="13324" fg:w="48"/><text x="9.3265%" y="111.50"></text></g><g><title>realloc (92 samples, 0.06%)</title><rect x="9.1092%" y="101" width="0.0627%" height="15" fill="rgb(234,67,33)" fg:x="13372" fg:w="92"/><text x="9.3592%" y="111.50"></text></g><g><title>core::fmt::num::imp::&lt;impl core::fmt::Display for i8&gt;::fmt (92 samples, 0.06%)</title><rect x="9.1092%" y="85" width="0.0627%" height="15" fill="rgb(247,98,35)" fg:x="13372" fg:w="92"/><text x="9.3592%" y="95.50"></text></g><g><title>resolveExprStep (1,394 samples, 0.95%)</title><rect x="9.1718%" y="101" width="0.9496%" height="15" fill="rgb(247,138,52)" fg:x="13464" fg:w="1394"/><text x="9.4218%" y="111.50"></text></g><g><title>selectInnerLoop (52 samples, 0.04%)</title><rect x="10.1215%" y="101" width="0.0354%" height="15" fill="rgb(213,79,30)" fg:x="14858" fg:w="52"/><text x="10.3715%" y="111.50"></text></g><g><title>sqlite3BtreeInsert (229 samples, 0.16%)</title><rect x="10.1569%" y="101" width="0.1560%" height="15" fill="rgb(246,177,23)" fg:x="14910" fg:w="229"/><text x="10.4069%" y="111.50"></text></g><g><title>sqlite3BtreeMovetoUnpacked (217 samples, 0.15%)</title><rect x="10.3129%" y="101" width="0.1478%" height="15" fill="rgb(230,62,27)" fg:x="15139" fg:w="217"/><text x="10.5629%" y="111.50"></text></g><g><title>sqlite3DbFree (3,929 samples, 2.68%)</title><rect x="10.4607%" y="101" width="2.6765%" height="15" fill="rgb(216,154,8)" fg:x="15356" fg:w="3929"/><text x="10.7107%" y="111.50">sq..</text></g><g><title>cfree (3,929 samples, 2.68%)</title><rect x="10.4607%" y="85" width="2.6765%" height="15" fill="rgb(244,35,45)" fg:x="15356" fg:w="3929"/><text x="10.7107%" y="95.50">cf..</text></g><g><title>[libc-2.33.so] (3,929 samples, 2.68%)</title><rect x="10.4607%" y="69" width="2.6765%" height="15" fill="rgb(251,115,12)" fg:x="15356" fg:w="3929"/><text x="10.7107%" y="79.50">[l..</text></g><g><title>[libc-2.33.so] (3,929 samples, 2.68%)</title><rect x="10.4607%" y="53" width="2.6765%" height="15" fill="rgb(240,54,50)" fg:x="15356" fg:w="3929"/><text x="10.7107%" y="63.50">[l..</text></g><g><title>[libc-2.33.so] (1,776 samples, 1.21%)</title><rect x="11.9274%" y="37" width="1.2098%" height="15" fill="rgb(233,84,52)" fg:x="17509" fg:w="1776"/><text x="12.1774%" y="47.50"></text></g><g><title>sqlite3ExprCodeExprList (544 samples, 0.37%)</title><rect x="13.1372%" y="101" width="0.3706%" height="15" fill="rgb(207,117,47)" fg:x="19285" fg:w="544"/><text x="13.3872%" y="111.50"></text></g><g><title>sqlite3GetToken (613 samples, 0.42%)</title><rect x="13.5078%" y="101" width="0.4176%" height="15" fill="rgb(249,43,39)" fg:x="19829" fg:w="613"/><text x="13.7578%" y="111.50"></text></g><g><title>__GI___pthread_mutex_lock (2,395 samples, 1.63%)</title><rect x="14.5820%" y="85" width="1.6315%" height="15" fill="rgb(209,38,44)" fg:x="21406" fg:w="2395"/><text x="14.8320%" y="95.50"></text></g><g><title>__GI___pthread_mutex_unlock (107 samples, 0.07%)</title><rect x="16.2135%" y="85" width="0.0729%" height="15" fill="rgb(236,212,23)" fg:x="23801" fg:w="107"/><text x="16.4635%" y="95.50"></text></g><g><title>__pthread_mutex_unlock_usercnt (3,150 samples, 2.15%)</title><rect x="16.2864%" y="85" width="2.1458%" height="15" fill="rgb(242,79,21)" fg:x="23908" fg:w="3150"/><text x="16.5364%" y="95.50">_..</text></g><g><title>sqlite3Malloc (6,617 samples, 4.51%)</title><rect x="13.9254%" y="101" width="4.5076%" height="15" fill="rgb(211,96,35)" fg:x="20442" fg:w="6617"/><text x="14.1754%" y="111.50">sqlit..</text></g><g><title>sqlite3MemFree (25 samples, 0.02%)</title><rect x="18.4329%" y="101" width="0.0170%" height="15" fill="rgb(253,215,40)" fg:x="27059" fg:w="25"/><text x="18.6829%" y="111.50"></text></g><g><title>sqlite3MemMalloc (2,716 samples, 1.85%)</title><rect x="18.4500%" y="101" width="1.8502%" height="15" fill="rgb(211,81,21)" fg:x="27084" fg:w="2716"/><text x="18.7000%" y="111.50">s..</text></g><g><title>malloc (2,504 samples, 1.71%)</title><rect x="18.5944%" y="85" width="1.7058%" height="15" fill="rgb(208,190,38)" fg:x="27296" fg:w="2504"/><text x="18.8444%" y="95.50"></text></g><g><title>[libc-2.33.so] (2,134 samples, 1.45%)</title><rect x="18.8464%" y="69" width="1.4537%" height="15" fill="rgb(235,213,38)" fg:x="27666" fg:w="2134"/><text x="19.0964%" y="79.50"></text></g><g><title>[libc-2.33.so] (122 samples, 0.08%)</title><rect x="20.2170%" y="53" width="0.0831%" height="15" fill="rgb(237,122,38)" fg:x="29678" fg:w="122"/><text x="20.4670%" y="63.50"></text></g><g><title>[libc-2.33.so] (40 samples, 0.03%)</title><rect x="20.2729%" y="37" width="0.0272%" height="15" fill="rgb(244,218,35)" fg:x="29760" fg:w="40"/><text x="20.5229%" y="47.50"></text></g><g><title>sqlite3MemRealloc (76 samples, 0.05%)</title><rect x="20.3001%" y="101" width="0.0518%" height="15" fill="rgb(240,68,47)" fg:x="29800" fg:w="76"/><text x="20.5501%" y="111.50"></text></g><g><title>realloc (76 samples, 0.05%)</title><rect x="20.3001%" y="85" width="0.0518%" height="15" fill="rgb(210,16,53)" fg:x="29800" fg:w="76"/><text x="20.5501%" y="95.50"></text></g><g><title>[libc-2.33.so] (76 samples, 0.05%)</title><rect x="20.3001%" y="69" width="0.0518%" height="15" fill="rgb(235,124,12)" fg:x="29800" fg:w="76"/><text x="20.5501%" y="79.50"></text></g><g><title>[libc-2.33.so] (76 samples, 0.05%)</title><rect x="20.3001%" y="53" width="0.0518%" height="15" fill="rgb(224,169,11)" fg:x="29800" fg:w="76"/><text x="20.5501%" y="63.50"></text></g><g><title>sqlite3MemSize (21 samples, 0.01%)</title><rect x="20.3519%" y="101" width="0.0143%" height="15" fill="rgb(250,166,2)" fg:x="29876" fg:w="21"/><text x="20.6019%" y="111.50"></text></g><g><title>sqlite3PagerCommitPhaseOne (32 samples, 0.02%)</title><rect x="20.3662%" y="101" width="0.0218%" height="15" fill="rgb(242,216,29)" fg:x="29897" fg:w="32"/><text x="20.6162%" y="111.50"></text></g><g><title>selectExpander (46 samples, 0.03%)</title><rect x="20.3894%" y="69" width="0.0313%" height="15" fill="rgb(230,116,27)" fg:x="29931" fg:w="46"/><text x="20.6394%" y="79.50"></text></g><g><title>sqlite3Select (63 samples, 0.04%)</title><rect x="20.3887%" y="101" width="0.0429%" height="15" fill="rgb(228,99,48)" fg:x="29930" fg:w="63"/><text x="20.6387%" y="111.50"></text></g><g><title>sqlite3WalkSelect (63 samples, 0.04%)</title><rect x="20.3887%" y="85" width="0.0429%" height="15" fill="rgb(253,11,6)" fg:x="29930" fg:w="63"/><text x="20.6387%" y="95.50"></text></g><g><title>sqlite3MemMalloc (16 samples, 0.01%)</title><rect x="20.4207%" y="69" width="0.0109%" height="15" fill="rgb(247,143,39)" fg:x="29977" fg:w="16"/><text x="20.6707%" y="79.50"></text></g><g><title>selectExpander (16 samples, 0.01%)</title><rect x="20.4207%" y="53" width="0.0109%" height="15" fill="rgb(236,97,10)" fg:x="29977" fg:w="16"/><text x="20.6707%" y="63.50"></text></g><g><title>sqlite3SelectNew (19 samples, 0.01%)</title><rect x="20.4316%" y="101" width="0.0129%" height="15" fill="rgb(233,208,19)" fg:x="29993" fg:w="19"/><text x="20.6816%" y="111.50"></text></g><g><title>sqlite3SelectPopWith (22 samples, 0.01%)</title><rect x="20.4446%" y="101" width="0.0150%" height="15" fill="rgb(216,164,2)" fg:x="30012" fg:w="22"/><text x="20.6946%" y="111.50"></text></g><g><title>sqlite3WalkSelect (76 samples, 0.05%)</title><rect x="20.4595%" y="101" width="0.0518%" height="15" fill="rgb(220,129,5)" fg:x="30034" fg:w="76"/><text x="20.7095%" y="111.50"></text></g><g><title>sqlite3_finalize (589 samples, 0.40%)</title><rect x="20.5113%" y="101" width="0.4012%" height="15" fill="rgb(242,17,10)" fg:x="30110" fg:w="589"/><text x="20.7613%" y="111.50"></text></g><g><title>sqlite3VdbeClearObject (589 samples, 0.40%)</title><rect x="20.5113%" y="85" width="0.4012%" height="15" fill="rgb(242,107,0)" fg:x="30110" fg:w="589"/><text x="20.7613%" y="95.50"></text></g><g><title>subjournalPageIfRequired (30 samples, 0.02%)</title><rect x="20.9126%" y="101" width="0.0204%" height="15" fill="rgb(251,28,31)" fg:x="30699" fg:w="30"/><text x="21.1626%" y="111.50"></text></g><g><title>walkExpr (19 samples, 0.01%)</title><rect x="20.9391%" y="101" width="0.0129%" height="15" fill="rgb(233,223,10)" fg:x="30738" fg:w="19"/><text x="21.1891%" y="111.50"></text></g><g><title>[unknown] (26,241 samples, 17.88%)</title><rect x="3.1254%" y="117" width="17.8757%" height="15" fill="rgb(215,21,27)" fg:x="4588" fg:w="26241"/><text x="3.3754%" y="127.50">[unknown]</text></g><g><title>yy_reduce (72 samples, 0.05%)</title><rect x="20.9521%" y="101" width="0.0490%" height="15" fill="rgb(232,23,21)" fg:x="30757" fg:w="72"/><text x="21.2021%" y="111.50"></text></g><g><title>__GI___pthread_mutex_lock (330 samples, 0.22%)</title><rect x="21.0011%" y="117" width="0.2248%" height="15" fill="rgb(244,5,23)" fg:x="30829" fg:w="330"/><text x="21.2511%" y="127.50"></text></g><g><title>alloc::fmt::format (71 samples, 0.05%)</title><rect x="21.2402%" y="117" width="0.0484%" height="15" fill="rgb(226,81,46)" fg:x="31180" fg:w="71"/><text x="21.4902%" y="127.50"></text></g><g><title>alloc::raw_vec::RawVec&lt;T,A&gt;::reserve::do_reserve_and_handle (21 samples, 0.01%)</title><rect x="21.2886%" y="117" width="0.0143%" height="15" fill="rgb(247,70,30)" fg:x="31251" fg:w="21"/><text x="21.5386%" y="127.50"></text></g><g><title>alloc::raw_vec::finish_grow (155 samples, 0.11%)</title><rect x="21.3029%" y="117" width="0.1056%" height="15" fill="rgb(212,68,19)" fg:x="31272" fg:w="155"/><text x="21.5529%" y="127.50"></text></g><g><title>realloc (97 samples, 0.07%)</title><rect x="21.3424%" y="101" width="0.0661%" height="15" fill="rgb(240,187,13)" fg:x="31330" fg:w="97"/><text x="21.5924%" y="111.50"></text></g><g><title>[libc-2.33.so] (97 samples, 0.07%)</title><rect x="21.3424%" y="85" width="0.0661%" height="15" fill="rgb(223,113,26)" fg:x="31330" fg:w="97"/><text x="21.5924%" y="95.50"></text></g><g><title>[libc-2.33.so] (97 samples, 0.07%)</title><rect x="21.3424%" y="69" width="0.0661%" height="15" fill="rgb(206,192,2)" fg:x="31330" fg:w="97"/><text x="21.5924%" y="79.50"></text></g><g><title>applyAffinity (252 samples, 0.17%)</title><rect x="21.4119%" y="117" width="0.1717%" height="15" fill="rgb(241,108,4)" fg:x="31432" fg:w="252"/><text x="21.6619%" y="127.50"></text></g><g><title>[libc-2.33.so] (79 samples, 0.05%)</title><rect x="21.6694%" y="101" width="0.0538%" height="15" fill="rgb(247,173,49)" fg:x="31810" fg:w="79"/><text x="21.9194%" y="111.50"></text></g><g><title>cfree (165 samples, 0.11%)</title><rect x="21.7232%" y="101" width="0.1124%" height="15" fill="rgb(224,114,35)" fg:x="31889" fg:w="165"/><text x="21.9732%" y="111.50"></text></g><g><title>[libc-2.33.so] (127 samples, 0.09%)</title><rect x="21.7491%" y="85" width="0.0865%" height="15" fill="rgb(245,159,27)" fg:x="31927" fg:w="127"/><text x="21.9991%" y="95.50"></text></g><g><title>core::fmt::Formatter::pad_integral (43 samples, 0.03%)</title><rect x="21.8356%" y="101" width="0.0293%" height="15" fill="rgb(245,172,44)" fg:x="32054" fg:w="43"/><text x="22.0856%" y="111.50"></text></g><g><title>basic_batched_wp::main (425 samples, 0.29%)</title><rect x="21.5931%" y="117" width="0.2895%" height="15" fill="rgb(236,23,11)" fg:x="31698" fg:w="425"/><text x="21.8431%" y="127.50"></text></g><g><title>core::fmt::write (26 samples, 0.02%)</title><rect x="21.8649%" y="101" width="0.0177%" height="15" fill="rgb(205,117,38)" fg:x="32097" fg:w="26"/><text x="22.1149%" y="111.50"></text></g><g><title>btreeParseCellPtr (23 samples, 0.02%)</title><rect x="21.8826%" y="117" width="0.0157%" height="15" fill="rgb(237,72,25)" fg:x="32123" fg:w="23"/><text x="22.1326%" y="127.50"></text></g><g><title>cfree (622 samples, 0.42%)</title><rect x="21.8996%" y="117" width="0.4237%" height="15" fill="rgb(244,70,9)" fg:x="32148" fg:w="622"/><text x="22.1496%" y="127.50"></text></g><g><title>__GI___pthread_mutex_lock (598 samples, 0.41%)</title><rect x="22.4991%" y="101" width="0.4074%" height="15" fill="rgb(217,125,39)" fg:x="33028" fg:w="598"/><text x="22.7491%" y="111.50"></text></g><g><title>__GI___pthread_mutex_unlock (35 samples, 0.02%)</title><rect x="22.9065%" y="101" width="0.0238%" height="15" fill="rgb(235,36,10)" fg:x="33626" fg:w="35"/><text x="23.1565%" y="111.50"></text></g><g><title>__pthread_mutex_unlock_usercnt (584 samples, 0.40%)</title><rect x="22.9303%" y="101" width="0.3978%" height="15" fill="rgb(251,123,47)" fg:x="33661" fg:w="584"/><text x="23.1803%" y="111.50"></text></g><g><title>clearSelect (2,137 samples, 1.46%)</title><rect x="22.3233%" y="117" width="1.4558%" height="15" fill="rgb(221,13,13)" fg:x="32770" fg:w="2137"/><text x="22.5733%" y="127.50"></text></g><g><title>cfree (662 samples, 0.45%)</title><rect x="23.3281%" y="101" width="0.4510%" height="15" fill="rgb(238,131,9)" fg:x="34245" fg:w="662"/><text x="23.5781%" y="111.50"></text></g><g><title>[libc-2.33.so] (605 samples, 0.41%)</title><rect x="23.3670%" y="85" width="0.4121%" height="15" fill="rgb(211,50,8)" fg:x="34302" fg:w="605"/><text x="23.6170%" y="95.50"></text></g><g><title>[libc-2.33.so] (94 samples, 0.06%)</title><rect x="23.7151%" y="69" width="0.0640%" height="15" fill="rgb(245,182,24)" fg:x="34813" fg:w="94"/><text x="23.9651%" y="79.50"></text></g><g><title>codeInteger (695 samples, 0.47%)</title><rect x="23.7791%" y="117" width="0.4734%" height="15" fill="rgb(242,14,37)" fg:x="34907" fg:w="695"/><text x="24.0291%" y="127.50"></text></g><g><title>core::fmt::Formatter::pad (43 samples, 0.03%)</title><rect x="24.2532%" y="117" width="0.0293%" height="15" fill="rgb(246,228,12)" fg:x="35603" fg:w="43"/><text x="24.5032%" y="127.50"></text></g><g><title>core::fmt::Formatter::pad_integral (180 samples, 0.12%)</title><rect x="24.2825%" y="117" width="0.1226%" height="15" fill="rgb(213,55,15)" fg:x="35646" fg:w="180"/><text x="24.5325%" y="127.50"></text></g><g><title>core::fmt::Formatter::pad_integral::write_prefix (48 samples, 0.03%)</title><rect x="24.4051%" y="117" width="0.0327%" height="15" fill="rgb(209,9,3)" fg:x="35826" fg:w="48"/><text x="24.6551%" y="127.50"></text></g><g><title>core::fmt::num::imp::&lt;impl core::fmt::Display for i8&gt;::fmt (80 samples, 0.05%)</title><rect x="24.4378%" y="117" width="0.0545%" height="15" fill="rgb(230,59,30)" fg:x="35874" fg:w="80"/><text x="24.6878%" y="127.50"></text></g><g><title>core::fmt::write (233 samples, 0.16%)</title><rect x="24.4923%" y="117" width="0.1587%" height="15" fill="rgb(209,121,21)" fg:x="35954" fg:w="233"/><text x="24.7423%" y="127.50"></text></g><g><title>dbMallocRawFinish (237 samples, 0.16%)</title><rect x="24.6510%" y="117" width="0.1614%" height="15" fill="rgb(220,109,13)" fg:x="36187" fg:w="237"/><text x="24.9010%" y="127.50"></text></g><g><title>__GI___pthread_mutex_lock (596 samples, 0.41%)</title><rect x="26.6743%" y="101" width="0.4060%" height="15" fill="rgb(232,18,1)" fg:x="39157" fg:w="596"/><text x="26.9243%" y="111.50"></text></g><g><title>__GI___pthread_mutex_unlock (96 samples, 0.07%)</title><rect x="27.0803%" y="101" width="0.0654%" height="15" fill="rgb(215,41,42)" fg:x="39753" fg:w="96"/><text x="27.3303%" y="111.50"></text></g><g><title>__pthread_mutex_unlock_usercnt (2,707 samples, 1.84%)</title><rect x="27.1457%" y="101" width="1.8440%" height="15" fill="rgb(224,123,36)" fg:x="39849" fg:w="2707"/><text x="27.3957%" y="111.50">_..</text></g><g><title>exprListDeleteNN (6,630 samples, 4.52%)</title><rect x="24.8125%" y="117" width="4.5164%" height="15" fill="rgb(240,125,3)" fg:x="36424" fg:w="6630"/><text x="25.0625%" y="127.50">exprL..</text></g><g><title>cfree (498 samples, 0.34%)</title><rect x="28.9897%" y="101" width="0.3392%" height="15" fill="rgb(205,98,50)" fg:x="42556" fg:w="498"/><text x="29.2397%" y="111.50"></text></g><g><title>[libc-2.33.so] (462 samples, 0.31%)</title><rect x="29.0142%" y="85" width="0.3147%" height="15" fill="rgb(205,185,37)" fg:x="42592" fg:w="462"/><text x="29.2642%" y="95.50"></text></g><g><title>[libc-2.33.so] (47 samples, 0.03%)</title><rect x="29.3317%" y="101" width="0.0320%" height="15" fill="rgb(238,207,15)" fg:x="43058" fg:w="47"/><text x="29.5817%" y="111.50"></text></g><g><title>insertCell (18 samples, 0.01%)</title><rect x="29.3637%" y="101" width="0.0123%" height="15" fill="rgb(213,199,42)" fg:x="43105" fg:w="18"/><text x="29.6137%" y="111.50"></text></g><g><title>getPageNormal (70 samples, 0.05%)</title><rect x="29.3289%" y="117" width="0.0477%" height="15" fill="rgb(235,201,11)" fg:x="43054" fg:w="70"/><text x="29.5789%" y="127.50"></text></g><g><title>growOp3 (4,134 samples, 2.82%)</title><rect x="29.3766%" y="117" width="2.8161%" height="15" fill="rgb(207,46,11)" fg:x="43124" fg:w="4134"/><text x="29.6266%" y="127.50">gr..</text></g><g><title>sqlite3ExprCodeExprList (4,134 samples, 2.82%)</title><rect x="29.3766%" y="101" width="2.8161%" height="15" fill="rgb(241,35,35)" fg:x="43124" fg:w="4134"/><text x="29.6266%" y="111.50">sq..</text></g><g><title>sqlite3ExprCodeTarget (3,832 samples, 2.61%)</title><rect x="29.5823%" y="85" width="2.6104%" height="15" fill="rgb(243,32,47)" fg:x="43426" fg:w="3832"/><text x="29.8323%" y="95.50">sq..</text></g><g><title>insertCell (140 samples, 0.10%)</title><rect x="32.1928%" y="117" width="0.0954%" height="15" fill="rgb(247,202,23)" fg:x="47258" fg:w="140"/><text x="32.4428%" y="127.50"></text></g><g><title>malloc (190 samples, 0.13%)</title><rect x="32.2881%" y="117" width="0.1294%" height="15" fill="rgb(219,102,11)" fg:x="47398" fg:w="190"/><text x="32.5381%" y="127.50"></text></g><g><title>pager_write_pagelist (433 samples, 0.29%)</title><rect x="32.4216%" y="117" width="0.2950%" height="15" fill="rgb(243,110,44)" fg:x="47594" fg:w="433"/><text x="32.6716%" y="127.50"></text></g><g><title>pcache1ResizeHash (20 samples, 0.01%)</title><rect x="32.7261%" y="117" width="0.0136%" height="15" fill="rgb(222,74,54)" fg:x="48041" fg:w="20"/><text x="32.9761%" y="127.50"></text></g><g><title>pthreadMutexEnter (362 samples, 0.25%)</title><rect x="32.7398%" y="117" width="0.2466%" height="15" fill="rgb(216,99,12)" fg:x="48061" fg:w="362"/><text x="32.9898%" y="127.50"></text></g><g><title>pthreadMutexLeave (392 samples, 0.27%)</title><rect x="32.9864%" y="117" width="0.2670%" height="15" fill="rgb(226,22,26)" fg:x="48423" fg:w="392"/><text x="33.2364%" y="127.50"></text></g><g><title>putVarint64 (374 samples, 0.25%)</title><rect x="33.2534%" y="117" width="0.2548%" height="15" fill="rgb(217,163,10)" fg:x="48815" fg:w="374"/><text x="33.5034%" y="127.50"></text></g><g><title>rand_chacha::guts::refill_wide::impl_avx2 (27 samples, 0.02%)</title><rect x="33.5089%" y="117" width="0.0184%" height="15" fill="rgb(213,25,53)" fg:x="49190" fg:w="27"/><text x="33.7589%" y="127.50"></text></g><g><title>resolveExprStep (377 samples, 0.26%)</title><rect x="33.5307%" y="117" width="0.2568%" height="15" fill="rgb(252,105,26)" fg:x="49222" fg:w="377"/><text x="33.7807%" y="127.50"></text></g><g><title>resolveP2Values (602 samples, 0.41%)</title><rect x="33.7875%" y="117" width="0.4101%" height="15" fill="rgb(220,39,43)" fg:x="49599" fg:w="602"/><text x="34.0375%" y="127.50"></text></g><g><title>resolveSelectStep (1,865 samples, 1.27%)</title><rect x="34.1976%" y="117" width="1.2705%" height="15" fill="rgb(229,68,48)" fg:x="50201" fg:w="1865"/><text x="34.4476%" y="127.50"></text></g><g><title>walkExpr (63 samples, 0.04%)</title><rect x="35.4251%" y="101" width="0.0429%" height="15" fill="rgb(252,8,32)" fg:x="52003" fg:w="63"/><text x="35.6751%" y="111.50"></text></g><g><title>selectExpander (310 samples, 0.21%)</title><rect x="35.4680%" y="117" width="0.2112%" height="15" fill="rgb(223,20,43)" fg:x="52066" fg:w="310"/><text x="35.7180%" y="127.50"></text></g><g><title>selectInnerLoop (2,297 samples, 1.56%)</title><rect x="35.6792%" y="117" width="1.5647%" height="15" fill="rgb(229,81,49)" fg:x="52376" fg:w="2297"/><text x="35.9292%" y="127.50"></text></g><g><title>[libc-2.33.so] (157 samples, 0.11%)</title><rect x="37.7174%" y="101" width="0.1070%" height="15" fill="rgb(236,28,36)" fg:x="55368" fg:w="157"/><text x="37.9674%" y="111.50"></text></g><g><title>sqlite3BtreeInsert (860 samples, 0.59%)</title><rect x="37.2439%" y="117" width="0.5858%" height="15" fill="rgb(249,185,26)" fg:x="54673" fg:w="860"/><text x="37.4939%" y="127.50"></text></g><g><title>sqlite3BtreeMovetoUnpacked (22 samples, 0.01%)</title><rect x="37.8298%" y="117" width="0.0150%" height="15" fill="rgb(249,174,33)" fg:x="55533" fg:w="22"/><text x="38.0798%" y="127.50"></text></g><g><title>sqlite3DbFree (3,261 samples, 2.22%)</title><rect x="37.8448%" y="117" width="2.2214%" height="15" fill="rgb(233,201,37)" fg:x="55555" fg:w="3261"/><text x="38.0948%" y="127.50">s..</text></g><g><title>cfree (3,256 samples, 2.22%)</title><rect x="37.8482%" y="101" width="2.2180%" height="15" fill="rgb(221,78,26)" fg:x="55560" fg:w="3256"/><text x="38.0982%" y="111.50">c..</text></g><g><title>[libc-2.33.so] (3,256 samples, 2.22%)</title><rect x="37.8482%" y="85" width="2.2180%" height="15" fill="rgb(250,127,30)" fg:x="55560" fg:w="3256"/><text x="38.0982%" y="95.50">[..</text></g><g><title>[libc-2.33.so] (3,256 samples, 2.22%)</title><rect x="37.8482%" y="69" width="2.2180%" height="15" fill="rgb(230,49,44)" fg:x="55560" fg:w="3256"/><text x="38.0982%" y="79.50">[..</text></g><g><title>[libc-2.33.so] (1,434 samples, 0.98%)</title><rect x="39.0894%" y="53" width="0.9769%" height="15" fill="rgb(229,67,23)" fg:x="57382" fg:w="1434"/><text x="39.3394%" y="63.50"></text></g><g><title>sqlite3DbMallocRawNN (1,643 samples, 1.12%)</title><rect x="40.0662%" y="117" width="1.1192%" height="15" fill="rgb(249,83,47)" fg:x="58816" fg:w="1643"/><text x="40.3162%" y="127.50"></text></g><g><title>sqlite3ExprAlloc (1,096 samples, 0.75%)</title><rect x="41.1854%" y="117" width="0.7466%" height="15" fill="rgb(215,43,3)" fg:x="60459" fg:w="1096"/><text x="41.4354%" y="127.50"></text></g><g><title>sqlite3ExprCodeExprList (84 samples, 0.06%)</title><rect x="41.9321%" y="117" width="0.0572%" height="15" fill="rgb(238,154,13)" fg:x="61555" fg:w="84"/><text x="42.1821%" y="127.50"></text></g><g><title>sqlite3ExprCodeTarget (240 samples, 0.16%)</title><rect x="41.9893%" y="117" width="0.1635%" height="15" fill="rgb(219,56,2)" fg:x="61639" fg:w="240"/><text x="42.2393%" y="127.50"></text></g><g><title>__GI___pthread_mutex_lock (2,317 samples, 1.58%)</title><rect x="44.6140%" y="101" width="1.5784%" height="15" fill="rgb(233,0,4)" fg:x="65492" fg:w="2317"/><text x="44.8640%" y="111.50"></text></g><g><title>sqlite3ExprDeleteNN (8,518 samples, 5.80%)</title><rect x="42.1528%" y="117" width="5.8026%" height="15" fill="rgb(235,30,7)" fg:x="61879" fg:w="8518"/><text x="42.4028%" y="127.50">sqlite3..</text></g><g><title>cfree (2,588 samples, 1.76%)</title><rect x="46.1924%" y="101" width="1.7630%" height="15" fill="rgb(250,79,13)" fg:x="67809" fg:w="2588"/><text x="46.4424%" y="111.50"></text></g><g><title>[libc-2.33.so] (2,117 samples, 1.44%)</title><rect x="46.5132%" y="85" width="1.4421%" height="15" fill="rgb(211,146,34)" fg:x="68280" fg:w="2117"/><text x="46.7632%" y="95.50"></text></g><g><title>sqlite3GetInt32 (649 samples, 0.44%)</title><rect x="47.9560%" y="117" width="0.4421%" height="15" fill="rgb(228,22,38)" fg:x="70398" fg:w="649"/><text x="48.2060%" y="127.50"></text></g><g><title>sqlite3GetToken (3,115 samples, 2.12%)</title><rect x="48.3981%" y="117" width="2.1220%" height="15" fill="rgb(235,168,5)" fg:x="71047" fg:w="3115"/><text x="48.6481%" y="127.50">s..</text></g><g><title>__GI___pthread_mutex_lock (1,783 samples, 1.21%)</title><rect x="51.4506%" y="101" width="1.2146%" height="15" fill="rgb(221,155,16)" fg:x="75528" fg:w="1783"/><text x="51.7006%" y="111.50"></text></g><g><title>__GI___pthread_mutex_unlock (72 samples, 0.05%)</title><rect x="52.6652%" y="101" width="0.0490%" height="15" fill="rgb(215,215,53)" fg:x="77311" fg:w="72"/><text x="52.9152%" y="111.50"></text></g><g><title>sqlite3Malloc (6,040 samples, 4.11%)</title><rect x="50.5208%" y="117" width="4.1145%" height="15" fill="rgb(223,4,10)" fg:x="74163" fg:w="6040"/><text x="50.7708%" y="127.50">sqli..</text></g><g><title>__pthread_mutex_unlock_usercnt (2,820 samples, 1.92%)</title><rect x="52.7143%" y="101" width="1.9210%" height="15" fill="rgb(234,103,6)" fg:x="77383" fg:w="2820"/><text x="52.9643%" y="111.50">_..</text></g><g><title>sqlite3MemFree (95 samples, 0.06%)</title><rect x="54.6353%" y="117" width="0.0647%" height="15" fill="rgb(227,97,0)" fg:x="80203" fg:w="95"/><text x="54.8853%" y="127.50"></text></g><g><title>sqlite3MemMalloc (5,648 samples, 3.85%)</title><rect x="54.7000%" y="117" width="3.8475%" height="15" fill="rgb(234,150,53)" fg:x="80298" fg:w="5648"/><text x="54.9500%" y="127.50">sqli..</text></g><g><title>malloc (4,969 samples, 3.38%)</title><rect x="55.1626%" y="101" width="3.3849%" height="15" fill="rgb(228,201,54)" fg:x="80977" fg:w="4969"/><text x="55.4126%" y="111.50">mal..</text></g><g><title>[libc-2.33.so] (4,029 samples, 2.74%)</title><rect x="55.8029%" y="85" width="2.7446%" height="15" fill="rgb(222,22,37)" fg:x="81917" fg:w="4029"/><text x="56.0529%" y="95.50">[l..</text></g><g><title>[libc-2.33.so] (57 samples, 0.04%)</title><rect x="58.5087%" y="69" width="0.0388%" height="15" fill="rgb(237,53,32)" fg:x="85889" fg:w="57"/><text x="58.7587%" y="79.50"></text></g><g><title>sqlite3MemRealloc (77 samples, 0.05%)</title><rect x="58.5475%" y="117" width="0.0525%" height="15" fill="rgb(233,25,53)" fg:x="85946" fg:w="77"/><text x="58.7975%" y="127.50"></text></g><g><title>realloc (77 samples, 0.05%)</title><rect x="58.5475%" y="101" width="0.0525%" height="15" fill="rgb(210,40,34)" fg:x="85946" fg:w="77"/><text x="58.7975%" y="111.50"></text></g><g><title>[libc-2.33.so] (77 samples, 0.05%)</title><rect x="58.5475%" y="85" width="0.0525%" height="15" fill="rgb(241,220,44)" fg:x="85946" fg:w="77"/><text x="58.7975%" y="95.50"></text></g><g><title>[libc-2.33.so] (77 samples, 0.05%)</title><rect x="58.5475%" y="69" width="0.0525%" height="15" fill="rgb(235,28,35)" fg:x="85946" fg:w="77"/><text x="58.7975%" y="79.50"></text></g><g><title>sqlite3MemRoundup (197 samples, 0.13%)</title><rect x="58.6000%" y="117" width="0.1342%" height="15" fill="rgb(210,56,17)" fg:x="86023" fg:w="197"/><text x="58.8500%" y="127.50"></text></g><g><title>sqlite3MemSize (320 samples, 0.22%)</title><rect x="58.7342%" y="117" width="0.2180%" height="15" fill="rgb(224,130,29)" fg:x="86220" fg:w="320"/><text x="58.9842%" y="127.50"></text></g><g><title>sqlite3PagerSavepoint (24 samples, 0.02%)</title><rect x="58.9522%" y="117" width="0.0163%" height="15" fill="rgb(235,212,8)" fg:x="86540" fg:w="24"/><text x="59.2022%" y="127.50"></text></g><g><title>syncJournal (24 samples, 0.02%)</title><rect x="58.9522%" y="101" width="0.0163%" height="15" fill="rgb(223,33,50)" fg:x="86540" fg:w="24"/><text x="59.2022%" y="111.50"></text></g><g><title>sqlite3PcacheDirtyList (87 samples, 0.06%)</title><rect x="58.9685%" y="117" width="0.0593%" height="15" fill="rgb(219,149,13)" fg:x="86564" fg:w="87"/><text x="59.2185%" y="127.50"></text></g><g><title>sqlite3Prepare (320 samples, 0.22%)</title><rect x="59.0278%" y="117" width="0.2180%" height="15" fill="rgb(250,156,29)" fg:x="86651" fg:w="320"/><text x="59.2778%" y="127.50"></text></g><g><title>[libc-2.33.so] (320 samples, 0.22%)</title><rect x="59.0278%" y="101" width="0.2180%" height="15" fill="rgb(216,193,19)" fg:x="86651" fg:w="320"/><text x="59.2778%" y="111.50"></text></g><g><title>sqlite3ResolveExprListNames (3,735 samples, 2.54%)</title><rect x="59.2458%" y="117" width="2.5443%" height="15" fill="rgb(216,135,14)" fg:x="86971" fg:w="3735"/><text x="59.4958%" y="127.50">sq..</text></g><g><title>sqlite3ResolveExprNames (140 samples, 0.10%)</title><rect x="61.7901%" y="117" width="0.0954%" height="15" fill="rgb(241,47,5)" fg:x="90706" fg:w="140"/><text x="62.0401%" y="127.50"></text></g><g><title>[unknown] (149 samples, 0.10%)</title><rect x="67.2698%" y="101" width="0.1015%" height="15" fill="rgb(233,42,35)" fg:x="98750" fg:w="149"/><text x="67.5198%" y="111.50"></text></g><g><title>yy_reduce (148 samples, 0.10%)</title><rect x="67.2704%" y="85" width="0.1008%" height="15" fill="rgb(231,13,6)" fg:x="98751" fg:w="148"/><text x="67.5204%" y="95.50"></text></g><g><title>parserDoubleLinkSelect (4,194 samples, 2.86%)</title><rect x="67.3713%" y="101" width="2.8570%" height="15" fill="rgb(207,181,40)" fg:x="98899" fg:w="4194"/><text x="67.6213%" y="111.50">pa..</text></g><g><title>sqlite3ExprAlloc (233 samples, 0.16%)</title><rect x="70.2283%" y="101" width="0.1587%" height="15" fill="rgb(254,173,49)" fg:x="103093" fg:w="233"/><text x="70.4783%" y="111.50"></text></g><g><title>sqlite3ExprListAppendNew (125 samples, 0.09%)</title><rect x="70.3870%" y="101" width="0.0852%" height="15" fill="rgb(221,1,38)" fg:x="103326" fg:w="125"/><text x="70.6370%" y="111.50"></text></g><g><title>sqlite3RunParser (265 samples, 0.18%)</title><rect x="70.4721%" y="101" width="0.1805%" height="15" fill="rgb(206,124,46)" fg:x="103451" fg:w="265"/><text x="70.7221%" y="111.50"></text></g><g><title>yy_reduce (265 samples, 0.18%)</title><rect x="70.4721%" y="85" width="0.1805%" height="15" fill="rgb(249,21,11)" fg:x="103451" fg:w="265"/><text x="70.7221%" y="95.50"></text></g><g><title>sqlite3SelectNew (291 samples, 0.20%)</title><rect x="70.6527%" y="101" width="0.1982%" height="15" fill="rgb(222,201,40)" fg:x="103716" fg:w="291"/><text x="70.9027%" y="111.50"></text></g><g><title>tokenExpr (238 samples, 0.16%)</title><rect x="70.8516%" y="101" width="0.1621%" height="15" fill="rgb(235,61,29)" fg:x="104008" fg:w="238"/><text x="71.1016%" y="111.50"></text></g><g><title>sqlite3RunParser (18,228 samples, 12.42%)</title><rect x="61.8855%" y="117" width="12.4171%" height="15" fill="rgb(219,207,3)" fg:x="90846" fg:w="18228"/><text x="62.1355%" y="127.50">sqlite3RunParser</text></g><g><title>yy_reduce (4,828 samples, 3.29%)</title><rect x="71.0137%" y="101" width="3.2889%" height="15" fill="rgb(222,56,46)" fg:x="104246" fg:w="4828"/><text x="71.2637%" y="111.50">yy_..</text></g><g><title>[basic_batched_wp] (22 samples, 0.01%)</title><rect x="74.3026%" y="101" width="0.0150%" height="15" fill="rgb(239,76,54)" fg:x="109074" fg:w="22"/><text x="74.5526%" y="111.50"></text></g><g><title>walkExpr (22 samples, 0.01%)</title><rect x="74.3026%" y="85" width="0.0150%" height="15" fill="rgb(231,124,27)" fg:x="109074" fg:w="22"/><text x="74.5526%" y="95.50"></text></g><g><title>sqlite3Select (4,559 samples, 3.11%)</title><rect x="74.3026%" y="117" width="3.1056%" height="15" fill="rgb(249,195,6)" fg:x="109074" fg:w="4559"/><text x="74.5526%" y="127.50">sql..</text></g><g><title>sqlite3WalkSelect (4,537 samples, 3.09%)</title><rect x="74.3176%" y="101" width="3.0907%" height="15" fill="rgb(237,174,47)" fg:x="109096" fg:w="4537"/><text x="74.5676%" y="111.50">sql..</text></g><g><title>selectExpander (4,266 samples, 2.91%)</title><rect x="74.5022%" y="85" width="2.9061%" height="15" fill="rgb(206,201,31)" fg:x="109367" fg:w="4266"/><text x="74.7522%" y="95.50">se..</text></g><g><title>sqlite3SelectNew (713 samples, 0.49%)</title><rect x="77.4083%" y="117" width="0.4857%" height="15" fill="rgb(231,57,52)" fg:x="113633" fg:w="713"/><text x="77.6583%" y="127.50"></text></g><g><title>sqlite3DbFree (92 samples, 0.06%)</title><rect x="77.8313%" y="101" width="0.0627%" height="15" fill="rgb(248,177,22)" fg:x="114254" fg:w="92"/><text x="78.0813%" y="111.50"></text></g><g><title>sqlite3SelectPopWith (23 samples, 0.02%)</title><rect x="77.8940%" y="117" width="0.0157%" height="15" fill="rgb(215,211,37)" fg:x="114346" fg:w="23"/><text x="78.1440%" y="127.50"></text></g><g><title>selectExpander (24 samples, 0.02%)</title><rect x="77.9096%" y="101" width="0.0163%" height="15" fill="rgb(241,128,51)" fg:x="114369" fg:w="24"/><text x="78.1596%" y="111.50"></text></g><g><title>sqlite3ExprWalkNoop (218 samples, 0.15%)</title><rect x="77.9260%" y="101" width="0.1485%" height="15" fill="rgb(227,165,31)" fg:x="114393" fg:w="218"/><text x="78.1760%" y="111.50"></text></g><g><title>sqlite3WalkSelectExpr (4,071 samples, 2.77%)</title><rect x="78.0745%" y="101" width="2.7732%" height="15" fill="rgb(228,167,24)" fg:x="114611" fg:w="4071"/><text x="78.3245%" y="111.50">sq..</text></g><g><title>sqlite3SelectPrep (4,358 samples, 2.97%)</title><rect x="77.9096%" y="117" width="2.9687%" height="15" fill="rgb(228,143,12)" fg:x="114369" fg:w="4358"/><text x="78.1596%" y="127.50">sql..</text></g><g><title>walkExpr (45 samples, 0.03%)</title><rect x="80.8477%" y="101" width="0.0307%" height="15" fill="rgb(249,149,8)" fg:x="118682" fg:w="45"/><text x="81.0977%" y="111.50"></text></g><g><title>sqlite3SrcListAssignCursors (255 samples, 0.17%)</title><rect x="80.8784%" y="117" width="0.1737%" height="15" fill="rgb(243,35,44)" fg:x="118727" fg:w="255"/><text x="81.1284%" y="127.50"></text></g><g><title>__GI___pthread_mutex_lock (564 samples, 0.38%)</title><rect x="81.4370%" y="101" width="0.3842%" height="15" fill="rgb(246,89,9)" fg:x="119547" fg:w="564"/><text x="81.6870%" y="111.50"></text></g><g><title>sqlite3SrcListDelete (1,620 samples, 1.10%)</title><rect x="81.0521%" y="117" width="1.1036%" height="15" fill="rgb(233,213,13)" fg:x="118982" fg:w="1620"/><text x="81.3021%" y="127.50"></text></g><g><title>cfree (491 samples, 0.33%)</title><rect x="81.8212%" y="101" width="0.3345%" height="15" fill="rgb(233,141,41)" fg:x="120111" fg:w="491"/><text x="82.0712%" y="111.50"></text></g><g><title>[libc-2.33.so] (472 samples, 0.32%)</title><rect x="81.8341%" y="85" width="0.3215%" height="15" fill="rgb(239,167,4)" fg:x="120130" fg:w="472"/><text x="82.0841%" y="95.50"></text></g><g><title>sqlite3VdbeExec (2,472 samples, 1.68%)</title><rect x="82.1556%" y="117" width="1.6840%" height="15" fill="rgb(209,217,16)" fg:x="120602" fg:w="2472"/><text x="82.4056%" y="127.50"></text></g><g><title>sqlite3VdbeMemGrow (62 samples, 0.04%)</title><rect x="83.8396%" y="117" width="0.0422%" height="15" fill="rgb(219,88,35)" fg:x="123074" fg:w="62"/><text x="84.0896%" y="127.50"></text></g><g><title>sqlite3BtreeInsert (62 samples, 0.04%)</title><rect x="83.8396%" y="101" width="0.0422%" height="15" fill="rgb(220,193,23)" fg:x="123074" fg:w="62"/><text x="84.0896%" y="111.50"></text></g><g><title>sqlite3WalkSelectExpr (203 samples, 0.14%)</title><rect x="83.8818%" y="117" width="0.1383%" height="15" fill="rgb(230,90,52)" fg:x="123136" fg:w="203"/><text x="84.1318%" y="127.50"></text></g><g><title>[libc-2.33.so] (38 samples, 0.03%)</title><rect x="87.2572%" y="85" width="0.0259%" height="15" fill="rgb(252,106,19)" fg:x="128091" fg:w="38"/><text x="87.5072%" y="95.50"></text></g><g><title>[libc-2.33.so] (456 samples, 0.31%)</title><rect x="87.9248%" y="69" width="0.3106%" height="15" fill="rgb(206,74,20)" fg:x="129071" fg:w="456"/><text x="88.1748%" y="79.50"></text></g><g><title>[libc-2.33.so] (66 samples, 0.04%)</title><rect x="88.4528%" y="37" width="0.0450%" height="15" fill="rgb(230,138,44)" fg:x="129846" fg:w="66"/><text x="88.7028%" y="47.50"></text></g><g><title>applyAffinity (1,808 samples, 1.23%)</title><rect x="87.2831%" y="85" width="1.2316%" height="15" fill="rgb(235,182,43)" fg:x="128129" fg:w="1808"/><text x="87.5331%" y="95.50"></text></g><g><title>vdbeCloseStatement (400 samples, 0.27%)</title><rect x="88.2423%" y="69" width="0.2725%" height="15" fill="rgb(242,16,51)" fg:x="129537" fg:w="400"/><text x="88.4923%" y="79.50"></text></g><g><title>insertCell (400 samples, 0.27%)</title><rect x="88.2423%" y="53" width="0.2725%" height="15" fill="rgb(248,9,4)" fg:x="129537" fg:w="400"/><text x="88.4923%" y="63.50"></text></g><g><title>subjournalPageIfRequired (25 samples, 0.02%)</title><rect x="88.4977%" y="37" width="0.0170%" height="15" fill="rgb(210,31,22)" fg:x="129912" fg:w="25"/><text x="88.7477%" y="47.50"></text></g><g><title>sqlite3_step (6,613 samples, 4.50%)</title><rect x="84.0242%" y="117" width="4.5049%" height="15" fill="rgb(239,54,39)" fg:x="123345" fg:w="6613"/><text x="84.2742%" y="127.50">sqlit..</text></g><g><title>sqlite3VdbeExec (6,613 samples, 4.50%)</title><rect x="84.0242%" y="101" width="4.5049%" height="15" fill="rgb(230,99,41)" fg:x="123345" fg:w="6613"/><text x="84.2742%" y="111.50">sqlit..</text></g><g><title>sqlite3BtreeInsert (21 samples, 0.01%)</title><rect x="88.5148%" y="85" width="0.0143%" height="15" fill="rgb(253,106,12)" fg:x="129937" fg:w="21"/><text x="88.7648%" y="95.50"></text></g><g><title>std::sys_common::backtrace::__rust_begin_short_backtrace (21 samples, 0.01%)</title><rect x="88.5291%" y="117" width="0.0143%" height="15" fill="rgb(213,46,41)" fg:x="129958" fg:w="21"/><text x="88.7791%" y="127.50"></text></g><g><title>alloc::fmt::format (21 samples, 0.01%)</title><rect x="88.5291%" y="101" width="0.0143%" height="15" fill="rgb(215,133,35)" fg:x="129958" fg:w="21"/><text x="88.7791%" y="111.50"></text></g><g><title>selectExpander (1,512 samples, 1.03%)</title><rect x="88.5434%" y="101" width="1.0300%" height="15" fill="rgb(213,28,5)" fg:x="129979" fg:w="1512"/><text x="88.7934%" y="111.50"></text></g><g><title>strAccumFinishRealloc (1,532 samples, 1.04%)</title><rect x="88.5434%" y="117" width="1.0436%" height="15" fill="rgb(215,77,49)" fg:x="129979" fg:w="1532"/><text x="88.7934%" y="127.50"></text></g><g><title>sqlite3SrcListAssignCursors (20 samples, 0.01%)</title><rect x="89.5734%" y="101" width="0.0136%" height="15" fill="rgb(248,100,22)" fg:x="131491" fg:w="20"/><text x="89.8234%" y="111.50"></text></g><g><title>subjournalPageIfRequired (177 samples, 0.12%)</title><rect x="89.5870%" y="117" width="0.1206%" height="15" fill="rgb(208,67,9)" fg:x="131511" fg:w="177"/><text x="89.8370%" y="127.50"></text></g><g><title>tokenExpr (756 samples, 0.51%)</title><rect x="89.7076%" y="117" width="0.5150%" height="15" fill="rgb(219,133,21)" fg:x="131688" fg:w="756"/><text x="89.9576%" y="127.50"></text></g><g><title>[libc-2.33.so] (149 samples, 0.10%)</title><rect x="90.1211%" y="101" width="0.1015%" height="15" fill="rgb(246,46,29)" fg:x="132295" fg:w="149"/><text x="90.3711%" y="111.50"></text></g><g><title>__libc_lseek (49 samples, 0.03%)</title><rect x="90.2355%" y="101" width="0.0334%" height="15" fill="rgb(246,185,52)" fg:x="132463" fg:w="49"/><text x="90.4855%" y="111.50"></text></g><g><title>unixWrite (119 samples, 0.08%)</title><rect x="90.2226%" y="117" width="0.0811%" height="15" fill="rgb(252,136,11)" fg:x="132444" fg:w="119"/><text x="90.4726%" y="127.50"></text></g><g><title>__libc_write (51 samples, 0.03%)</title><rect x="90.2689%" y="101" width="0.0347%" height="15" fill="rgb(219,138,53)" fg:x="132512" fg:w="51"/><text x="90.5189%" y="111.50"></text></g><g><title>[libc-2.33.so] (77 samples, 0.05%)</title><rect x="90.5693%" y="85" width="0.0525%" height="15" fill="rgb(211,51,23)" fg:x="132953" fg:w="77"/><text x="90.8193%" y="95.50"></text></g><g><title>vdbeCloseStatement (477 samples, 0.32%)</title><rect x="90.3036%" y="117" width="0.3249%" height="15" fill="rgb(247,221,28)" fg:x="132563" fg:w="477"/><text x="90.5536%" y="127.50"></text></g><g><title>insertCell (477 samples, 0.32%)</title><rect x="90.3036%" y="101" width="0.3249%" height="15" fill="rgb(251,222,45)" fg:x="132563" fg:w="477"/><text x="90.5536%" y="111.50"></text></g><g><title>walkExpr (3,553 samples, 2.42%)</title><rect x="90.6286%" y="117" width="2.4203%" height="15" fill="rgb(217,162,53)" fg:x="133040" fg:w="3553"/><text x="90.8786%" y="127.50">wa..</text></g><g><title>__GI___pthread_mutex_unlock (53 samples, 0.04%)</title><rect x="95.4488%" y="69" width="0.0361%" height="15" fill="rgb(229,93,14)" fg:x="140116" fg:w="53"/><text x="95.6988%" y="79.50"></text></g><g><title>__pthread_mutex_unlock_usercnt (1,107 samples, 0.75%)</title><rect x="95.4849%" y="69" width="0.7541%" height="15" fill="rgb(209,67,49)" fg:x="140169" fg:w="1107"/><text x="95.7349%" y="79.50"></text></g><g><title>clearSelect (2,343 samples, 1.60%)</title><rect x="94.6504%" y="85" width="1.5961%" height="15" fill="rgb(213,87,29)" fg:x="138944" fg:w="2343"/><text x="94.9004%" y="95.50"></text></g><g><title>selectAddSubqueryTypeInfo (131 samples, 0.09%)</title><rect x="96.2465%" y="85" width="0.0892%" height="15" fill="rgb(205,151,52)" fg:x="141287" fg:w="131"/><text x="96.4965%" y="95.50"></text></g><g><title>selectInnerLoop (32 samples, 0.02%)</title><rect x="99.9448%" y="69" width="0.0218%" height="15" fill="rgb(253,215,39)" fg:x="146716" fg:w="32"/><text x="100.1948%" y="79.50"></text></g><g><title>selectInnerLoop (22 samples, 0.01%)</title><rect x="99.9666%" y="53" width="0.0150%" height="15" fill="rgb(221,220,41)" fg:x="146748" fg:w="22"/><text x="100.2166%" y="63.50"></text></g><g><title>sqlite3Select (5,354 samples, 3.65%)</title><rect x="96.3358%" y="85" width="3.6472%" height="15" fill="rgb(218,133,21)" fg:x="141418" fg:w="5354"/><text x="96.5858%" y="95.50">sqli..</text></g><g><title>sqlite3WalkSelect (24 samples, 0.02%)</title><rect x="99.9666%" y="69" width="0.0163%" height="15" fill="rgb(221,193,43)" fg:x="146748" fg:w="24"/><text x="100.2166%" y="79.50"></text></g><g><title>all (146,797 samples, 100%)</title><rect x="0.0000%" y="149" width="100.0000%" height="15" fill="rgb(240,128,52)" fg:x="0" fg:w="146797"/><text x="0.2500%" y="159.50"></text></g><g><title>basic_batched_w (146,797 samples, 100.00%)</title><rect x="0.0000%" y="133" width="100.0000%" height="15" fill="rgb(253,114,12)" fg:x="0" fg:w="146797"/><text x="0.2500%" y="143.50">basic_batched_w</text></g><g><title>yy_reduce (10,204 samples, 6.95%)</title><rect x="93.0489%" y="117" width="6.9511%" height="15" fill="rgb(215,223,47)" fg:x="136593" fg:w="10204"/><text x="93.2989%" y="127.50">yy_reduce</text></g><g><title>sqlite3Insert (8,514 samples, 5.80%)</title><rect x="94.2002%" y="101" width="5.7998%" height="15" fill="rgb(248,225,23)" fg:x="138283" fg:w="8514"/><text x="94.4502%" y="111.50">sqlite3..</text></g><g><title>sqlite3SelectWalkNoop (25 samples, 0.02%)</title><rect x="99.9830%" y="85" width="0.0170%" height="15" fill="rgb(250,108,0)" fg:x="146772" fg:w="25"/><text x="100.2330%" y="95.50"></text></g></svg></svg>
