@@ -6,12 +6,11 @@
 //!
 //! previous: threaded_batched.rs
 
+use fast_sqlite3_inserts::*;
 use rusqlite::Connection;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
-
-mod common;
 
 fn consumer(rx: Receiver<String>) {
     let mut conn = Connection::open("threaded_str_batched.db").unwrap();
@@ -43,12 +42,12 @@ fn producer(tx: Sender<String>, count: i64) {
     let min_batch_size = 1_000_000;
     for _ in 0..(count / min_batch_size) {
         let mut stmt = "INSERT INTO user VALUES".to_owned();
-        let with_area = common::get_random_bool();
-        let age = common::get_random_age();
-        let is_active = common::get_random_active();
+        let with_area = get_random_bool();
+        let age = get_random_age();
+        let is_active = get_random_active();
         for _ in 0..min_batch_size {
             if with_area {
-                let area_code = common::get_random_area_code();
+                let area_code = get_random_area_code();
                 let params = format!(" (NULL, {}, {}, {}),", area_code, age, is_active);
                 stmt.push_str(&params);
             } else {

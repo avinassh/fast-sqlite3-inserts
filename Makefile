@@ -1,7 +1,16 @@
 # runs each of the scripts one after another, prints the measurements to stdout
 .SILENT:
 
+.PHONY: build_rust
+
 export TZ := ":Asia/Kolkata"
+
+build_rust: sqlite3/libsqlite3.a
+	./cargo_build.sh
+
+sqlite3/libsqlite3.a: sqlite3/sqlite3.c sqlite3/sqlite3.h sqlite3/compile.sh
+	sqlite3/compile.sh
+	#cargo clean -p rusqlite
 
 busy-python:
 	echo

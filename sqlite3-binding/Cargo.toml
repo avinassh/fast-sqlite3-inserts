@@ -1,0 +1,12 @@
+[package]
+name = "sqlite3-binding"
+version = "0.1.0"
+edition = "2018"
+
+[profile.release]
+lto = true
+panic = "abort"
+codegen-units = 1
+
+[dependencies]
+rusqlite = { version = "0.25.3", default-features = false, features = ["buildtime_bindgen"] }

@@ -6,9 +6,8 @@
 //! previous: basic_async.rs
 //! next: basic_batched.rs
 
+use fast_sqlite3_inserts::*;
 use rusqlite::{params, Connection, Transaction};
-
-mod common;
 
 fn faker_wrapper(mut conn: Connection, count: i64) {
     let tx = conn.transaction().unwrap();
@@ -25,11 +24,11 @@ fn faker(tx: &Transaction, count: i64) {
         .unwrap();
     let mut pk: i64 = 1;
     for _ in 0..count {
-        let with_area = common::get_random_bool();
-        let age = common::get_random_age();
-        let is_active = common::get_random_active();
+        let with_area = get_random_bool();
+        let age = get_random_age();
+        let is_active = get_random_active();
         if with_area {
-            let area_code = common::get_random_area_code();
+            let area_code = get_random_area_code();
             stmt_with_area
                 .execute(params![pk, area_code, age, is_active])
                 .unwrap();

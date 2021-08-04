@@ -7,9 +7,8 @@
 //! previous: basic_prep.rs
 //! next: basic_batched_wp.rs
 
+use fast_sqlite3_inserts::*;
 use rusqlite::{Connection, ToSql, Transaction};
-
-mod common;
 
 fn faker_wrapper(mut conn: Connection, count: i64) {
     let tx = conn.transaction().unwrap();
@@ -47,15 +46,15 @@ fn faker(tx: &Transaction, count: i64) {
     let mut stmt_with_area = tx.prepare_cached(st1.as_str()).unwrap();
     let mut stmt = tx.prepare_cached(st2.as_str()).unwrap();
     for _ in 0..(count / min_batch_size) {
-        let with_area = common::get_random_bool();
-        let age = common::get_random_age();
-        let is_active = common::get_random_active();
+        let with_area = get_random_bool();
+        let age = get_random_age();
+        let is_active = get_random_active();
         let mut param_values: Vec<_> = Vec::new();
         if with_area {
             // lets prepare the batch
             let mut vector = Vec::<(String, i8, i8)>::new();
             for _ in 0..min_batch_size {
-                let area_code = common::get_random_area_code();
+                let area_code = get_random_area_code();
                 vector.push((area_code, age, is_active));
             }
             for batch in vector.iter() {

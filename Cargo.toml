@@ -1,13 +1,24 @@
 [package]
-name = "fast-sqlite3-inserts"
+name = "fast_sqlite3_inserts"
 version = "0.1.0"
 authors = ["avi <hi@avi.im>"]
 edition = "2018"
 
+[workspace]
+members = ["sqlite3-binding"]
+
+[profile.release]
+lto = true
+panic = "abort"
+codegen-units = 1
+
+[features]
+async-sql = ["sqlx", "tokio"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-sqlx = { version = "0.5.2", features = ["runtime-tokio-native-tls", "sqlite"]}
-tokio = {version = "1.5.0", features = ["full"]}
+sqlx = { version = "0.5.2", features = ["runtime-tokio-native-tls", "sqlite"], optional = true }
+tokio = { version = "1.5.0", features = ["full"], optional = true }
 rand = "0.8.3"
 num_cpus = "1.0"
-rusqlite = "0.25.3"
+sqlite3-binding = { path = "sqlite3-binding" }
