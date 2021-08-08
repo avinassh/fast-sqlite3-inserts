@@ -1,23 +1,18 @@
-use rand::prelude::SliceRandom;
-use rand::Rng;
+use fastrand;
 
 pub fn get_random_age() -> i8 {
     let vs: Vec<i8> = vec![5, 10, 15];
-    *vs.choose(&mut rand::thread_rng()).unwrap()
+    vs[ fastrand::usize(..vs.len()) ]
 }
 
 pub fn get_random_active() -> i8 {
-    if rand::random() {
-        return 1;
-    }
-    0
+    fastrand::bool().into()
 }
 
 pub fn get_random_bool() -> bool {
-    rand::random()
+    fastrand::bool()
 }
 
 pub fn get_random_area_code() -> String {
-    let mut rng = rand::thread_rng();
-    format!("{:06}", rng.gen_range(0..999999))
+    format!("{:06}", fastrand::u32(0..999_999))
 }
