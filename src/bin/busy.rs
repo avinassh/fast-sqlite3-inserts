@@ -1,6 +1,6 @@
 //! busy loop
 //!
-//! This code does not really do anything, just runs two for loops. It has no SQL code. The idea was to measure how much 
+//! This code does not really do anything, just runs two for loops. It has no SQL code. The idea was to measure how much
 //! time rust spending just to run a for loop, generating data.
 //!
 //! next: threaded_busy.rs
