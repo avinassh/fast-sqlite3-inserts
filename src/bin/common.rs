@@ -1,8 +1,7 @@
 use fastrand;
 
 pub fn get_random_age() -> i8 {
-    let vs: Vec<i8> = vec![5, 10, 15];
-    vs[ fastrand::usize(..vs.len()) ]
+    [5, 10, 15][fastrand::usize(0..3)]
 }
 
 pub fn get_random_active() -> i8 {
