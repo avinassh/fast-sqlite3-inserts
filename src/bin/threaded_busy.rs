@@ -8,22 +8,23 @@
 use std::thread;
 extern crate num_cpus;
 
+use crate::common::AreaCode;
 use fast_sqlite3_inserts as common;
 
 fn faker(count: i64) {
     let min_batch_size = 1_000_000;
     for _ in 0..(count / min_batch_size) {
         let with_area = common::get_random_bool();
-        let mut current_batch = Vec::<(&str, i8, i8)>::new();
+        let mut current_batch = Vec::<(Option<AreaCode>, i8, i8)>::new();
         for _ in 0..min_batch_size {
             if with_area {
                 current_batch.push((
-                    common::get_random_area_code(),
+                    Some(common::get_random_area_code()),
                     common::get_random_age(),
                     common::get_random_active(),
                 ));
             } else {
-                current_batch.push(("", common::get_random_age(), common::get_random_active()));
+                current_batch.push((None, common::get_random_age(), common::get_random_active()));
             }
         }
     }

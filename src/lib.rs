@@ -1,4 +1,4 @@
-use once_cell::sync::Lazy;
+use rusqlite::{types::ToSqlOutput, ToSql};
 use tinystr::TinyStr8;
 
 pub fn get_random_age() -> i8 {
@@ -13,14 +13,10 @@ pub fn get_random_bool() -> bool {
     fastrand::bool()
 }
 
-pub fn get_random_area_code() -> &'static str {
-    static AREA_CODES: Lazy<Vec<TinyStr8>> = Lazy::new(|| {
-        (0..=999_999)
-            .map(|i| TinyStr8::from_bytes(&format_6digits_number(i)).unwrap())
-            .collect()
-    });
-
-    &AREA_CODES[fastrand::usize(0..=999_999)]
+pub fn get_random_area_code() -> AreaCode {
+    let n = fastrand::u32(0..=999_999);
+    let buffer = format_6digits_number(n);
+    TinyStr8::from_bytes(&buffer).map(AreaCode).unwrap()
 }
 
 /// Formats a number that is between 0 and 999_999,
@@ -47,5 +43,19 @@ mod tests {
             let expected = format!("{:06}", n);
             assert_eq!(output, expected.as_bytes());
         }
+    }
+}
+
+pub struct AreaCode(TinyStr8);
+
+impl AreaCode {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl ToSql for AreaCode {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        Ok(ToSqlOutput::from(self.0.as_str()))
     }
 }
