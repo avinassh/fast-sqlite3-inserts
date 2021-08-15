@@ -11,7 +11,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 
-mod common;
+use fast_sqlite3_inserts as common;
 
 fn consumer(rx: Receiver<String>) {
     let mut conn = Connection::open("threaded_str_batched.db").unwrap();

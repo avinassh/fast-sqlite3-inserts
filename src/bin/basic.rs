@@ -6,9 +6,8 @@
 //!
 //! next: basic_async.rs
 
+use fast_sqlite3_inserts as common;
 use rusqlite::{params, Connection};
-
-mod common;
 
 fn faker(mut conn: Connection, count: i64) {
     let tx = conn.transaction().unwrap();

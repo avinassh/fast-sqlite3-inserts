@@ -9,7 +9,7 @@
 
 use rusqlite::{Connection, ToSql, Transaction};
 
-mod common;
+use fast_sqlite3_inserts as common;
 
 fn faker_wrapper(mut conn: Connection, count: i64) {
     let tx = conn.transaction().unwrap();

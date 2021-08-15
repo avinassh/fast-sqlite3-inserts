@@ -5,7 +5,7 @@
 //!
 //! next: threaded_busy.rs
 
-mod common;
+use fast_sqlite3_inserts as common;
 
 fn faker(count: i64) {
     let min_batch_size = 1_000_000;

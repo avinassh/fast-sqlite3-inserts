@@ -1,6 +1,6 @@
 //! busy loop but threaded.
 //!
-//! This code does not really do anything, just runs two for loops. It has no SQL code. The idea was to measure how much 
+//! This code does not really do anything, just runs two for loops. It has no SQL code. The idea was to measure how much
 //! time rust spending just to run a for loop, generating data. This builds upon busy.rs and uses multiple threads.
 //!
 //! previous: busy.rs
@@ -8,7 +8,7 @@
 use std::thread;
 extern crate num_cpus;
 
-mod common;
+use fast_sqlite3_inserts as common;
 
 fn faker(count: i64) {
     let min_batch_size = 1_000_000;

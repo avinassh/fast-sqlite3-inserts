@@ -10,7 +10,7 @@
 
 use rusqlite::Connection;
 
-mod common;
+use fast_sqlite3_inserts as common;
 
 fn faker(mut conn: Connection, count: i64) {
     let tx = conn.transaction().unwrap();
