@@ -53,7 +53,7 @@ fn faker(tx: &Transaction, count: i64) {
         let mut param_values: Vec<_> = Vec::new();
         if with_area {
             // lets prepare the batch
-            let mut vector = Vec::<(String, i8, i8)>::new();
+            let mut vector = Vec::<(&str, i8, i8)>::new();
             for _ in 0..min_batch_size {
                 let area_code = common::get_random_area_code();
                 vector.push((area_code, age, is_active));
