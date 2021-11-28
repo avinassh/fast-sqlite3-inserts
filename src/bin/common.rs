@@ -14,5 +14,5 @@ pub fn get_random_bool() -> bool {
 }
 
 pub fn get_random_area_code() -> String {
-    format!("{:06}", fastrand::u32(0..999_999))
+    fastrand::u32(100_000..999_999).to_string()
 }
