@@ -86,6 +86,7 @@ Sun May  9 13:23:32 IST 2021 [RUST] threaded_busy.rs (100_000_000) iterations
 |---|---|---|
 | [#2](https://github.com/avinassh/fast-sqlite3-inserts/pull/2)  | [captn3m0](https://github.com/captn3m0)  | Reduced the CPython running time by half (from 7.5 minutes to 3.5 minute)  |
 | [#12](https://github.com/avinassh/fast-sqlite3-inserts/pull/12)  | [red15](https://github.com/red15)  | saved 2s from Rust's running time (bringing it to 30s)  |
+| [#19](https://github.com/avinassh/fast-sqlite3-inserts/pull/19)  | [kerollmops](https://github.com/Kerollmops)  | saved 5s from Rust's running time (bringing it to 23s)  |
 
 
 ## Contributing
