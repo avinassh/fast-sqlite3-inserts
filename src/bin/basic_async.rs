@@ -11,7 +11,7 @@ use std::str::FromStr;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous};
 use sqlx::{ConnectOptions, Connection, Executor, SqliteConnection, Statement};
 
-mod common;
+use fast_sqlite3_inserts as common;
 
 async fn faker(mut conn: SqliteConnection, count: i64) -> Result<(), sqlx::Error> {
     let mut tx = conn.begin().await?;
@@ -29,7 +29,7 @@ async fn faker(mut conn: SqliteConnection, count: i64) -> Result<(), sqlx::Error
             let area_code = common::get_random_area_code();
             stmt_with_area
                 .query()
-                .bind(area_code)
+                .bind(area_code.as_str())
                 .bind(age)
                 .bind(is_active)
                 .execute(&mut tx)

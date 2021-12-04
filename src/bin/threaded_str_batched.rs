@@ -11,7 +11,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 
-mod common;
+use fast_sqlite3_inserts as common;
 
 fn consumer(rx: Receiver<String>) {
     let mut conn = Connection::open("threaded_str_batched.db").unwrap();
@@ -49,7 +49,7 @@ fn producer(tx: Sender<String>, count: i64) {
         for _ in 0..min_batch_size {
             if with_area {
                 let area_code = common::get_random_area_code();
-                let params = format!(" (NULL, {}, {}, {}),", area_code, age, is_active);
+                let params = format!(" (NULL, {}, {}, {}),", area_code.as_str(), age, is_active);
                 stmt.push_str(&params);
             } else {
                 let params = format!(" (NULL, NULL, {}, {}),", age, is_active);

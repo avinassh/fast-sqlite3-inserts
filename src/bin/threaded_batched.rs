@@ -13,12 +13,13 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 
-mod common;
+use crate::common::AreaCode;
+use fast_sqlite3_inserts as common;
 
 static MIN_BATCH_SIZE: i64 = 50;
 
 enum ParamValues {
-    WithArea(Vec<(String, i8, i8)>),
+    WithArea(Vec<(AreaCode, i8, i8)>),
     WithoutArea(Vec<(i8, i8)>),
 }
 
@@ -93,7 +94,7 @@ fn producer(tx: Sender<ParamValues>, count: i64) {
         let mut param_values: Vec<_> = Vec::new();
         if with_area {
             // lets prepare the batch
-            let mut vector = Vec::<(String, i8, i8)>::new();
+            let mut vector = Vec::<(AreaCode, i8, i8)>::new();
             for _ in 0..MIN_BATCH_SIZE {
                 let area_code = common::get_random_area_code();
                 vector.push((area_code, age, is_active));

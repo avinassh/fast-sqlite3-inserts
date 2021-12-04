@@ -10,7 +10,7 @@
 
 use rusqlite::Connection;
 
-mod common;
+use fast_sqlite3_inserts as common;
 
 fn faker(mut conn: Connection, count: i64) {
     let tx = conn.transaction().unwrap();
@@ -23,7 +23,7 @@ fn faker(mut conn: Connection, count: i64) {
         for _ in 0..min_batch_size {
             if with_area {
                 let area_code = common::get_random_area_code();
-                let params = format!(" (NULL, {}, {}, {}),", area_code, age, is_active);
+                let params = format!(" (NULL, {}, {}, {}),", area_code.as_str(), age, is_active);
                 stmt.push_str(&params);
             } else {
                 let params = format!(" (NULL, NULL, {}, {}),", age, is_active);
