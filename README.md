@@ -10,7 +10,7 @@ Read this blog post for the more context - [Towards Inserting One Billion Rows i
 
 Variant       | Time
 ------------- | -------------
-Rust  | 30 seconds
+Rust  | 23 seconds
 PyPy  | 126 seconds
 CPython  | 210 seconds
 
@@ -35,17 +35,17 @@ Sat May  8 20:03:04 IST 2021 [PYPY] running sqlite3_opt_batched.py (100_000_000)
 These are the current fastest Rust numbers
 
 ```
-Sun Aug  8 13:52:32 IST 2021 [RUST] basic_batched.rs (100_000_000) inserts
+Mon Nov 22 18:47:26 IST 2021 [RUST] basic_batched.rs (100_000_000) inserts
 
-real	0m32.424s
-user	0m30.826s
-sys	0m2.272s
+real   0m23.826s
+user   0m21.685s
+sys    0m2.057s
 
-Sun Aug  8 13:53:06 IST 2021 [RUST] threaded_batched.rs (100_000_000) inserts
+Mon Nov 22 18:47:50 IST 2021 [RUST] threaded_batched.rs (100_000_000) inserts
 
-real	0m30.094s
-user	0m42.704s
-sys	0m3.877s
+real   0m23.070s
+user   0m27.512s
+sys    0m2.465s
 ```
 
 ### In Memory
