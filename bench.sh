@@ -5,7 +5,7 @@ export TZ=":Asia/Kolkata"
 # benching sqlite cli
 rm -rf sqlite3.db
 echo "$(date)" "[SQLite] running sqlite3 (100_000_000) inserts"
-time sqlite3 sqlite3.db '.read schema.sql' '.read load.sql'
+time sqlite3 sqlite3.db '.read load.sql'
 if [[ $(sqlite3 sqlite3.db  "select count(*) from user";) != 100000000 ]]; then
   echo "data verification failed"
 fi
